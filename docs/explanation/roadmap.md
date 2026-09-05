@@ -6,26 +6,26 @@ This roadmap is a dependency-ordered engineering timeline, not a release promise
 
 ## Guiding rule
 
-Build the financial truth layer before advanced analytics. A beautiful forecast over incomplete or weakly reconciled data is worse than a smaller, trustworthy ledger.
+Build the financial truth layer before advanced analytics, and establish recoverability before storing irreplaceable household data. A beautiful forecast over incomplete or weakly reconciled data is worse than a smaller, trustworthy ledger; an untested backup is not a backup.
 
 ## Timeline summary
 
 | Phase | Outcome | Estimated focused effort | Cumulative |
 |---|---|---:|---:|
-| 0 | Repository, architecture, deployment skeleton | 8–16 h | 8–16 h |
-| 1 | Core household + account + transaction ledger | 30–50 h | 38–66 h |
-| 2 | Imports, reconciliation, rules, review inbox | 25–40 h | 63–106 h |
-| 3 | Budget + household funding + settlements | 30–45 h | 93–151 h |
-| 4 | Provider sync + resilient history coverage | 25–40 h | 118–191 h |
-| 5 | Receipts + line items + matching | 35–55 h | 153–246 h |
-| 6 | Investments + known net worth | 30–50 h | 183–296 h |
-| 7 | Documents + rental-property records | 40–65 h | 223–361 h |
-| 8 | Local AI enrichment + evidence-linked analytics | 35–60 h | 258–421 h |
-| 9 | Multi-user privacy hardening + advanced planning | 40–80 h | 298–501 h |
+| 0 | Repository, architecture, deployment + encrypted recovery foundation | 18–30 h | 18–30 h |
+| 1 | Core household + account + transaction ledger | 30–50 h | 48–80 h |
+| 2 | Imports, reconciliation, rules, review inbox | 25–40 h | 73–120 h |
+| 3 | Budget + household funding + settlements | 30–45 h | 103–165 h |
+| 4 | Provider sync + resilient history coverage | 25–40 h | 128–205 h |
+| 5 | Receipts + line items + matching | 35–55 h | 163–260 h |
+| 6 | Investments + known net worth | 30–50 h | 193–310 h |
+| 7 | Documents + rental-property records | 40–65 h | 233–375 h |
+| 8 | Local AI enrichment + evidence-linked analytics | 35–60 h | 268–435 h |
+| 9 | Multi-user privacy hardening + advanced planning | 40–80 h | 308–515 h |
 
 The earlier 40–60 hour “bank-fed budgeting MVP” estimate still maps roughly to the end of Phases 1–2 with a narrow budget slice. The broader product vision intentionally expands beyond that MVP.
 
-## Phase 0 — foundation
+## Phase 0 — foundation and recoverability
 
 Deliver:
 
@@ -35,9 +35,18 @@ Deliver:
 - Docker Compose;
 - test projects and baseline CI;
 - structured logging with sensitive-data rules;
-- documentation checks and ADR workflow.
+- documentation checks and ADR workflow;
+- Backup Set manifest/version model;
+- local authenticated encryption/decryption path using a vetted implementation;
+- recovery-secret generation/export/verification workflow;
+- generic Backup Destination interface;
+- first offsite destination adapter, with Google Drive the initial target unless implementation-time constraints favor an equivalent provider;
+- scheduled backup status and configurable retention;
+- clean-environment restore validation.
 
-Exit condition: one-command local startup, health check, database migration, and a thin vertical API/UI slice.
+Exit condition: one-command local startup, health check, database migration, a thin vertical API/UI slice, and a complete encrypted backup can be uploaded off-host and restored into a clean Pryvance environment using only the backup plus the separately held recovery secret.
+
+Real household data should not be treated as safely onboarded until this restore path has been demonstrated.
 
 ## Phase 1 — trusted ledger
 
@@ -52,9 +61,10 @@ Deliver:
 - allocations;
 - transaction list/detail UI;
 - basic manual entry/editing of derived fields;
-- source/provenance display.
+- source/provenance display;
+- backup coverage of newly introduced database state and immutable objects.
 
-Exit condition: manually imported or seeded account activity can be represented without conflating account ownership, category, beneficiary, or entity scope.
+Exit condition: manually imported or seeded account activity can be represented without conflating account ownership, category, beneficiary, or entity scope, and the resulting data is included in verified encrypted backups.
 
 ## Phase 2 — ingest and exception handling
 
@@ -145,7 +155,7 @@ Deliver:
 - rental income/expense/capital-improvement reporting;
 - owner-funded property expenses.
 
-Exit condition: a rental-property report drills to transactions and documents, and extracted financial facts drill to original evidence.
+Exit condition: a rental-property report drills to transactions and documents, extracted financial facts drill to original evidence, and the expanded document store restores cleanly from encrypted offsite backup.
 
 ## Phase 8 — local intelligence
 
@@ -174,6 +184,10 @@ Candidates after measured need:
 - scenario/What If modeling;
 - scheduled insights;
 - native mobile only if PWA limitations become material.
+
+## Backup verification cadence
+
+Once real data is present, backup health is operationally continuous rather than a completed phase. Scheduled backups should expose last success, last verified remote copy, last restore-test result, retained recovery points, and destination health. Periodic restore tests into isolated temporary storage should be automated where practical and must never overwrite the live installation.
 
 ## Recalibration points
 
