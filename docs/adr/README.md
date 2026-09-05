@@ -21,4 +21,5 @@ Generated shape for the current ADR set; `scripts/docs/adr-index.sh --write` is 
 | [0004](0004-preserve-source-records-and-derive-financial-events.md) | Preserve immutable Source Records and derive Financial Events | Proposed | - | - | - | - | Pryvance will store immutable Source Records for provider/import facts and derive normalized… |
 | [0005](0005-use-deterministic-core-with-constrained-ai.md) | Keep financial truth deterministic and constrain AI to interpretation | Proposed | - | - | - | - | Pryvance will use deterministic application code for financial truth and expose AI only through… |
 | [0006](0006-separate-visibility-from-ownership-and-coverage.md) | Separate visibility from ownership and data coverage | Proposed | - | - | - | - | Pryvance will model account/record ownership, visibility permissions, and source-data coverage as… |
+| [0007](0007-encrypt-backups-before-offsite-storage.md) | Encrypt backups before offsite storage | Proposed | - | - | - | - | Pryvance will coordinate versioned, authenticated, client-side encrypted Backup Sets and upload… |
 <!-- adr-index:end -->
