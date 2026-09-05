@@ -49,3 +49,11 @@ The canonical vocabulary of Pryvance. One entry per domain term; implementation 
 **Coverage** — the known completeness of source data for a scope, account, date range, or fact family. Not: confidence.
 
 **Known Net Worth** — net worth computed only from tracked data, explicitly marked when coverage is incomplete. Not: household net worth.
+
+**Backup Set** — a point-in-time recoverable collection of the Pryvance database snapshot, referenced immutable objects, and verification manifest. Not: database dump.
+
+**Backup Envelope** — the authenticated encrypted artifact produced from a Backup Set before it is sent to offsite storage. Not: cloud backup folder.
+
+**Backup Destination** — a replaceable offsite or secondary storage target that stores opaque Backup Envelopes, such as Google Drive or S3-compatible storage. Not: backup key holder.
+
+**Recovery Secret** — independently stored secret material required to decrypt Backup Envelopes after host loss. Not: provider credential, account password.
