@@ -2,7 +2,7 @@
 
 Kind: explanation
 
-Pryvance is a self-hosted, local-first household financial platform. The initial architecture deliberately favors a small number of deployable units, strong domain boundaries inside the application, immutable source data, deterministic reconciliation, and optional local AI enrichment.
+Pryvance is a self-hosted, local-first household financial platform. The initial architecture deliberately favors a small number of deployable units, strong domain boundaries inside the application, immutable source data, deterministic reconciliation, optional local AI enrichment, and encrypted offsite recovery.
 
 ## Context
 
@@ -15,9 +15,12 @@ flowchart LR
     L[LM Studio / OpenAI-compatible AI] <-->|HTTP JSON| P
     T[Tailscale] -->|private network access| P
     P --> D[(Financial documents / receipts)]
+    P -->|encrypted backup envelopes only| O[Offsite backup provider\nGoogle Drive / S3 / other]
 ```
 
 The user is the system owner and primary operator. Other household members may later have separate logins and selective visibility, but the financial model does not require every person to connect accounts. External providers are data sources, not systems of record. Pryvance remains useful when provider coverage is partial by combining provider sync, historical imports, manual facts, documents, and explicit coverage metadata.
+
+Offsite backup providers are outside the confidentiality trust boundary. They store only encrypted Backup Envelopes; they do not receive plaintext database dumps, receipts, documents, or backup encryption keys.
 
 ## Container
 
@@ -30,6 +33,7 @@ flowchart TB
     Files[(Private document store)]
     AI[LM Studio\nOpenAI-compatible endpoint]
     Providers[Bank / email / market-data providers]
+    Backup[Offsite backup provider\nGoogle Drive / S3 / other]
 
     Browser -->|HTTPS JSON| App
     App -->|EF Core / SQL| DB
@@ -38,17 +42,18 @@ flowchart TB
     Worker -->|SQL| DB
     Worker -->|REST/OAuth| Providers
     Worker -->|OpenAI-compatible HTTP| AI
+    Worker -->|encrypted backup envelopes| Backup
 ```
 
 Initial Docker Compose topology:
 
-- `pryvance` — ASP.NET Core host serving the REST API, React static build, and background jobs.
+- `pryvance` — ASP.NET Core host serving the REST API, React static build, background jobs, and backup orchestration.
 - `postgres` — PostgreSQL; reachable only on the Docker network.
 - persistent private storage volume — originals for receipts and documents, referenced by content hash.
 
 React is compiled into static assets and served by ASP.NET Core. There is no required reverse proxy in the initial topology. Remote mobile access is expected to use Tailscale or an equivalent private overlay; public internet exposure is not an architectural requirement.
 
-The background-job boundary is logical first. It can move to a separate worker container later if workload or fault isolation requires it without changing the domain interfaces.
+The background-job boundary is logical first. It can move to a separate worker container later if workload or fault isolation requires it without changing the domain interfaces. Backup Destination adapters are likewise internal ports so Google Drive or another provider can be replaced without changing backup semantics.
 
 ## Component
 
@@ -68,6 +73,7 @@ flowchart LR
       Analytics[Analytics/query services]
       AIOrch[AI orchestration]
       Import[Import & provider adapters]
+      BackupCoord[Backup & restore coordinator]
       Jobs[Background job scheduler]
     end
 
@@ -90,8 +96,11 @@ flowchart LR
     AIOrch --> Review
     AIOrch --> Records
     AIOrch --> Analytics
+    BackupCoord --> Ledger
+    BackupCoord --> Records
     Jobs --> Import
     Jobs --> AIOrch
+    Jobs --> BackupCoord
 ```
 
 ### Identity and authorization
@@ -138,6 +147,12 @@ Exposes narrow tools to a local OpenAI-compatible model. The model may interpret
 
 Provider-specific clients map external records into Source Records. Provider choice is replaceable; domain code depends on internal ports rather than Teller, SimpleFIN, a bank API, email provider, or market-data vendor directly.
 
+### Backup and restore coordinator
+
+Creates a point-in-time Backup Set from a transaction-consistent PostgreSQL logical snapshot plus the immutable receipt/document objects referenced by that snapshot. It writes a versioned manifest with hashes and compatibility metadata, encrypts/authenticates the Backup Set locally, and passes only the encrypted Backup Envelope to a Backup Destination adapter.
+
+Restore downloads an encrypted envelope, decrypts into isolated staging, verifies authentication and manifest hashes, checks application/schema compatibility, and only then permits recovery into the live installation. Backup encryption/recovery keys are independent from destination credentials.
+
 ## Cross-cutting concerns
 
 ### Evidence before interpretation
@@ -153,6 +168,12 @@ Analytics must distinguish absence of known data from a known zero. Account and 
 The normal processing path is:
 
 `source ingest → deterministic identity/deduplication → deterministic reconciliation → rules → AI enrichment when useful → validation → Review when uncertain → user correction → optional learned rule`.
+
+### Encrypted offsite recovery
+
+Backup storage providers are transport/storage dependencies, not trusted holders of plaintext. Backups are encrypted locally before upload and use a versioned authenticated envelope. A separately held recovery secret is required so complete host loss is recoverable; losing that secret intentionally makes the encrypted backup unreadable.
+
+A backup is not considered healthy merely because upload succeeded. Pryvance tracks creation, upload, remote identifier, ciphertext size/hash where available, manifest verification, retention state, and restore-test status. Failed or unverified backups never trigger deletion of the last known-good copy.
 
 ### Deployment evolution
 
