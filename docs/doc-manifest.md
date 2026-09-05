@@ -17,7 +17,7 @@ tutorials: docs/tutorials/ · how-to: docs/how-to/ · reference: docs/reference/
 Index: docs/README.md
 
 ## ADRs
-Directory: docs/adr/ · Range in use: 0001–0006 · Normalisation ADR: none — all ADRs created post-adoption
+Directory: docs/adr/ · Range in use: 0001–0007 · Normalisation ADR: none — all ADRs created post-adoption
 Index markers: `<!-- adr-index:start -->` / `<!-- adr-index:end -->` in docs/adr/README.md
 
 ## Rationale areas
