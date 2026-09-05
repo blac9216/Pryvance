@@ -36,7 +36,7 @@ Pagination: cursor-based for large ledgers.
 
 Optimistic concurrency: mutable derived resources expose an `etag`/version. Updates that depend on prior state use `If-Match`; conflicting writes return `409` or `412`.
 
-Idempotency: import, settlement, and other retry-sensitive creation endpoints accept `Idempotency-Key`.
+Idempotency: import, settlement, backup-run, and other retry-sensitive creation endpoints accept `Idempotency-Key`.
 
 ## Error shape
 
@@ -53,7 +53,7 @@ Idempotency: import, settlement, and other retry-sensitive creation endpoints ac
 }
 ```
 
-Errors use Problem Details semantics. Sensitive provider/document/model content must not be copied into errors.
+Errors use Problem Details semantics. Sensitive provider/document/model/backup-key content must not be copied into errors.
 
 ## Household and parties
 
@@ -291,6 +291,62 @@ Request:
 ```
 
 Response contains narrative plus structured citations to internal entities/evidence. The endpoint is unavailable when AI is disabled.
+
+## Backup and disaster recovery administration
+
+Backup administration is privileged and never exposes the backup recovery secret through ordinary API responses.
+
+### `GET /backup/status`
+Returns backup configuration and health without secrets:
+
+```json
+{
+  "configured": true,
+  "destinationType": "google_drive",
+  "lastSuccessfulBackupAt": "2026-09-05T03:00:00Z",
+  "lastVerifiedBackupAt": "2026-09-05T03:02:11Z",
+  "lastRestoreTestAt": "2026-09-01T12:30:00Z",
+  "lastRestoreTestStatus": "passed",
+  "recoverySecretVerified": true,
+  "retainedBackupCount": 14
+}
+```
+
+### `GET /backup/destinations`
+Lists configured Backup Destinations and sanitized connection state. Provider credentials are never returned.
+
+### `POST /backup/destinations`
+Creates/configures a provider adapter such as Google Drive or another supported destination. Provider-specific OAuth details are administrative transport concerns and remain outside the stable domain contract.
+
+### `POST /backup/recovery-secret`
+Initializes or rotates the local backup recovery secret through an explicit privileged workflow. The response may return a one-time recovery export only when the operation is specifically designed for secure display/download; the secret is never retrievable later through a normal GET.
+
+Rotation must not silently orphan existing retained backups. A rotation workflow either re-wraps supported backup keys or records which recovery secret generation is required for each retained backup.
+
+### `POST /backup/recovery-secret/verify`
+Verifies that the operator can supply the independently stored recovery material before offsite backup is considered fully configured.
+
+### `POST /backup/runs`
+Starts an idempotent Backup Set creation, local encryption, upload, and remote verification job.
+
+Response returns a job/run identifier, not the backup contents.
+
+### `GET /backup/runs`
+Lists backup runs with status such as `creating`, `encrypting`, `uploading`, `verifying`, `succeeded`, and `failed`.
+
+### `GET /backup/runs/{runId}`
+Returns manifest-level health metadata, encrypted size/hash where safe, destination object identifier, errors sanitized of secrets, and retention state.
+
+### `POST /backup/restore-tests`
+Downloads a selected known-good Backup Envelope into isolated temporary storage, decrypts/authenticates it, verifies the manifest and schema compatibility, and performs the supported non-destructive restore validation path.
+
+It must never overwrite the live installation.
+
+### `POST /backup/restores/prepare`
+Validates a selected Backup Envelope and produces a short-lived restore plan describing compatibility, database/object counts, and required actions. Destructive restore requires an explicit administrative confirmation step outside normal application navigation.
+
+### `PUT /backup/retention-policy`
+Updates the retention policy. Pruning cannot delete the last known-good verified recovery point and is not executed as part of a failed/unverified backup run.
 
 ## Provider administration
 
