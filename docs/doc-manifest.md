@@ -2,9 +2,16 @@
 
 This repository follows the `design-docs` skill standard mirrored from the owner's `storage` repository. This file records Pryvance's adopted shape.
 
+## Design-set intent
+
+The design set describes the feature-complete target architecture approved so far. The roadmap sequences implementation; capabilities implemented later are still designed in the target-state explanation/reference documents before implementation begins.
+
 ## Design set
 - docs/explanation/architecture.md
 - docs/explanation/domain-model.md
+- docs/explanation/planning-and-forecasting.md
+- docs/explanation/wealth-records-and-tax.md
+- docs/explanation/integrations-and-automation.md
 - docs/explanation/security.md
 - docs/explanation/roadmap.md
 - docs/reference/api-contract.md
@@ -17,7 +24,7 @@ tutorials: docs/tutorials/ · how-to: docs/how-to/ · reference: docs/reference/
 Index: docs/README.md
 
 ## ADRs
-Directory: docs/adr/ · Range in use: 0001–0007 · Normalisation ADR: none — all ADRs created post-adoption
+Directory: docs/adr/ · Range in use: 0001–0012 · Normalisation ADR: none — all ADRs created post-adoption
 Index markers: `<!-- adr-index:start -->` / `<!-- adr-index:end -->` in docs/adr/README.md
 
 ## Rationale areas
@@ -34,4 +41,4 @@ CONTEXT.md at repo root · domain model: docs/explanation/domain-model.md
 Scripts source: scripts/docs/
 
 ## Design path
-Durable decisions are recorded in ADRs, rationale, the glossary, and the C4 design set. Specs, plans, interrogation records, and audit gap reports are not committed. Adopted under ADR-0001.
+Durable decisions are recorded in ADRs, rationale, the glossary, and the target-state C4/design set. Specs, plans, interrogation records, and audit gap reports are not committed. Adopted under ADR-0001.
