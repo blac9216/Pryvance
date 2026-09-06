@@ -25,11 +25,11 @@ Using Party for every allocation target would force Household and Property into 
 
 ## Decision
 
-Pryvance will model:
+Pryvance will separate actors, owned economic items, and allocation/reporting targets into Party, Asset, and Economic Scope respectively.
 
-- **Party** for actors (`Person`, `Financial Entity`);
-- **Asset** for owned economic items such as real estate;
-- **Economic Scope** as the canonical allocation/planning/reporting target representing Household, Person, Financial Entity, or Asset.
+- **Party** represents actors (`Person`, `Financial Entity`).
+- **Asset** represents owned economic items such as real estate.
+- **Economic Scope** is the canonical allocation/planning/reporting target representing Household, Person, Financial Entity, or Asset.
 
 Ownership relationships remain Party-based and effective-dated. Financial Entity ownership may be recursive but cycles are forbidden.
 
