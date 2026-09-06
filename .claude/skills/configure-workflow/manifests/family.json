@@ -1,0 +1,20 @@
+{
+  "skills": [
+    "configure-workflow",
+    "design-docs",
+    "github-pr-review",
+    "github-workflow",
+    "gitlab-workflow",
+    "interrogate",
+    "plan-work",
+    "with-secrets"
+  ],
+  "agents": [
+    "workflow-calibrator.md",
+    "workflow-fix.md",
+    "workflow-implementer.md",
+    "workflow-merge-verifier.md",
+    "workflow-rebase.md",
+    "workflow-reviewer.md"
+  ]
+}

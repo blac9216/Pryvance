@@ -26,6 +26,10 @@ POINTER_RE='docs/rationale/[^ ]+\.md#[[:lower:][:digit:]-]+'
 
 grep -rIn --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=bin --exclude-dir=obj -E "(#|//|<!--)[[:space:]]*why:[[:space:]]*$POINTER_RE" . 2>/dev/null | while IFS= read -r match; do
   file="${match%%:*}"
+  # why: docs/rationale/infrastructure.md#skill-fixture-pointers
+  case "$file" in
+    ./.claude/skills/*/tests/*|./.claude/skills/*/references/*) continue ;;
+  esac
   rest="${match#*:}"
   line="${rest%%:*}"
   body="${rest#*:}"
