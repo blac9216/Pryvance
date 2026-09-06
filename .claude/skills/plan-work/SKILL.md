@@ -39,9 +39,13 @@ doubt, the heavier path; complexity discovered mid-way upgrades it, never downgr
 4. **Decompose** — milestone description, domain epics, issues
    ([references/decompose.md](references/decompose.md)): provable acceptance criteria,
    `area:*`, priority, `blocked by` links (across milestones too), a consumes/produces note
-   where a sibling depends on a contract, an **Estimate** section on every issue. Every
-   issue estimated **L is split before filing**. Everything is homed and lands in
-   **Backlog** — the owner releases work to Ready deliberately.
+   where a sibling depends on a contract, an **Estimate** section on every issue. For an
+   already-filed issue, step 0 is the delivered-scope check (#202,
+   [references/estimate.md](references/estimate.md)) — subtract any merged-PR scope
+   (`scripts/delivered.sh`) before sizing; close what is fully delivered, re-size an S/M
+   remainder in place, and split only an L remainder. Every issue estimated **L is
+   split before filing**. Everything is homed and lands in **Backlog** — the owner
+   releases work to Ready deliberately.
 5. **Project** — per-issue estimates from the calibration table; milestone duration from
    its issues' critical path at the observed parallelism; place the milestone on the
    timeline after the already-scheduled ones unless issue dependencies say otherwise; set
@@ -74,4 +78,6 @@ Templates: [references/templates/](references/templates/) — research epic and 
 lane findings, composite findings, sign-off request, plan summary. Scripts:
 `scripts/history.sh` (calibration from repository history; GET-only; last 90 days by default),
 `scripts/timeline.sh` (milestone placement proposal from issue estimates and dependencies;
-GET-only; writes `timeline.md` — the agent applies `due_on` after the owner confirms).
+GET-only; writes `timeline.md` — the agent applies `due_on` after the owner confirms),
+`scripts/delivered.sh` (#202, merged PRs and net LOC per open estimated issue; GET-only;
+feeds the estimate/decompose step-0 delivered-scope check).

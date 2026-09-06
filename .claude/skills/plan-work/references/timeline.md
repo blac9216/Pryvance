@@ -27,11 +27,17 @@ absent, before any `gh` call) — this script never guesses the target repositor
    per-milestone projection stage.
    The parallelism source is either `--parallelism` (explicit), `--history-dir`
    (explicit, pointed at `history.sh`'s `--out`), or a same-run default-`--out`
-   guess — that last case is reported on stderr so a mismatched `--out` doesn't
-   silently fall back to 1.5. Falling back to 1.5 is always reported on stderr, with
-   wording that distinguishes the cause: `parallelism.txt` missing or empty reports
-   "no history at `<path>`"; `parallelism.txt` present but failing the positive-number
-   check reports "ignoring unusable parallelism `<value>` in `<path>`" instead.
+   guess. That guess (#898) checks `history.sh`'s own repo-keyed default `--out` first
+   — `$TMPDIR/plan-work-history/<owner>__<name>`, derived from this script's own
+   `--repo` — and falls back to the pre-#898 un-keyed `${OUT%/*}/plan-work-history`
+   path only for a directory an older `history.sh` wrote; both are reported on stderr
+   whenever the guess finds neither, so a mismatched `--out` doesn't silently fall back
+   to 1.5. Falling back to 1.5 is always reported on stderr, with wording that
+   distinguishes the cause: `parallelism.txt` missing or empty everywhere the guess
+   checked reports "no history at `<path>` (repo-keyed default `--out`) then `<path>`
+   (pre-#898 un-keyed layout)"; `parallelism.txt` present but failing the
+   positive-number check reports "ignoring unusable parallelism `<value>` in `<path>`"
+   instead.
 3. Place: started milestones are **pinned** at their actual start; a milestone the owner
    is starting now begins **today** and overlaps whatever is running; unstarted
    milestones are laid out serially after the last scheduled one unless an issue
@@ -56,6 +62,30 @@ is requested (either flag), a requested name that matches no open milestone is
 reported on stderr; matching zero milestones in total is an error. An empty
 `--milestones ""` or `--milestone ""` value is rejected outright — it can never mean
 "select every open milestone".
+
+## Reading `history.sh`'s calibration table
+
+The agent passes `--defaults` from the p50 cycle hours in `calibration.md`, so the
+columns that table carries are part of this script's input contract.
+
+Two of them are computed over a **subset** of the row's `n`, per epic #773 decision B3
+(amended 2026-09-06): `history.sh` counts review rounds from the
+`<!-- review … -->` footer on a PR comment and from nothing else — there is no heading
+fallback. A PR carrying no footer records `rounds: null`, still counts toward `n`,
+cycle hours and LOC, and is excluded from the round statistics. The table therefore
+prints `rounds n` (how many of `n` were footer-sourced) and `rounds excl.` (the rest)
+beside `rounds p50` and `first-pass %`, and repeats both totals in its "Rounds
+statistics" line and on stderr, so a `rounds p50` drawn from a fraction of a row is
+never mistaken for one drawn from all of it. A row whose `rounds n` is 0 shows `null`
+for both figures rather than a number computed from nothing.
+
+**first-pass %** is the share of `rounds n` that were **approved at round 1 with no
+earlier changes requested** — concretely, a PR none of whose footers carries a
+`changes_requested`, `decomposition_requested` or `escalated` verdict, whose highest
+footer round is 1, and whose round-1 footer verdict is `approved`. It is deliberately
+not "zero review rounds": a review round starts at 1, so a zero-rounds predicate is
+unsatisfiable under footer sourcing and would report a constant 0% however many PRs
+sailed through first time.
 
 ## `issues.jsonl` record fields
 

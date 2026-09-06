@@ -5,7 +5,7 @@
 # Usage: history.sh --repo owner/name [--since YYYY-MM-DD (default: 90 days
 #   ago)] [--adoption-date YYYY-MM-DD] [--out <dir>] [--refresh]
 #   [--aggregate-only] [--min-remaining N (default 1500)] [--page-size N
-#   (default 20)]
+#   (default 20)] [--logs <dir> (archived session-log JSONL, optional)]
 # Exit codes — this list is EXHAUSTIVE. 0 full run, or --aggregate-only,
 #   completed with nothing dropped; 1 rate-guard stopped the run before
 #   exhaustion (calibration.md carries a "PARTIAL — N of ~M merged PRs
@@ -60,6 +60,104 @@
 #   label → null), per #734 and #201's scope note (decision B4) — never from
 #   the `## Estimate` prose. `estimate_text` is still recorded as free text
 #   for reference, but nothing parses it.
+#
+# rounds/findings (#289, epic #773 decision B3, amended 2026-09-06): the
+#   `<!-- review {"v":1,"round":N,"verdict":…,"findings":[…]} -->` footer on
+#   a PR comment is the ONLY round/findings source. There is NO heading
+#   fallback: B3 reads "Count rounds from the review footer only. PRs
+#   without a footer get rounds=null and are excluded from round
+#   statistics; the exclusion count is printed. No heading fallback." A PR
+#   carrying at least one parseable footer records `rounds` = the max
+#   `.round` across its footers, `findings` = the per-footer `.findings`
+#   length array, and `rounds_source: "footer"`. A PR carrying none records
+#   `rounds: null`, `findings: []` and `rounds_source: null` — it still
+#   counts toward `n`, cycle_hours and net_loc, which are measured
+#   independently of any footer, but never toward rounds_p50 or
+#   first_pass_rate. `aggregate` reports `rounds_n` (how many of a block's
+#   `n` records carried a footer) and `rounds_excluded` (`n - rounds_n`)
+#   next to those two figures, prints the repo-wide exclusion count on
+#   stderr, and carries both into calibration.md's table and its
+#   "Rounds statistics" line, so a rounds_p50 drawn from a subset of `n` is
+#   never silent.
+#
+# first_pass_rate (#289, round-1 finding 1): "first pass" is defined for
+#   footer semantics, where a review round starts at 1 — NOT as `rounds==0`,
+#   which was the pre-footer heading-count shape and is unsatisfiable under
+#   footer sourcing (no footer ever carries round 0), so reusing it renders
+#   the statistic a constant 0. A record is first-pass when ALL of:
+#   (a) it is footer-sourced; (b) no footer on the PR carries a
+#   `changes_requested`, `decomposition_requested` or `escalated` verdict;
+#   (c) its max footer round is 1; and (d) the round-1 footer's verdict is
+#   `approved`. That is "approved at round 1 with no earlier changes
+#   requested", recorded per record as the boolean `first_pass` (null when
+#   the record is not footer-sourced) and aggregated as the percentage of
+#   `rounds_n` that are true. The verdict vocabulary is
+#   github-pr-review's: approved / changes_requested /
+#   decomposition_requested / escalated.
+#
+# Footer extraction (round-1 finding 6) matches only a footer occupying a
+#   WHOLE LINE of a comment body — `(?m)^<!-- review ({…}) -->$` — so a
+#   footer quoted inside prose, indented, or trailed by other text on the
+#   same line is not mistaken for a real one, and takes the LAST such line
+#   in a body, since a comment that quotes an example emits its own footer
+#   after it. `fromjson` is tried PER candidate rather than around the whole
+#   extraction chain: an unparseable candidate can never void a comment's
+#   valid footer, and a comment whose last whole-line candidate does not
+#   parse is counted in the record's `review_footers_malformed` and in
+#   completeness.malformed_review_footers rather than silently dropped.
+#
+# triage (#289): each record's `triage_at`/`triage_source`/`triage_decision`
+#   answer "when, and how, was this issue triaged". The primary source is an
+#   archived session log's `triage` event (see --logs below) naming this
+#   issue — `triage_source: "session-log"`, `triage_at` its `ts`,
+#   `triage_decision` its `decision` text. Without log coverage, the
+#   fallback is the issue's own `LabeledEvent`/`MilestonedEvent` timeline
+#   items — `triage_source: "timeline"`, `triage_at` the EARLIEST of the two
+#   kinds' `createdAt`. Neither present → all three fields `null`.
+#
+# --logs <dir> (optional, #289): a directory of archived session-log JSONL
+#   files (one event per line, `../../github-workflow/references/formats/
+#   session-log.md`). Every `*.jsonl` file directly under it is read (not
+#   recursive). Two event kinds are consulted, both matched by their
+#   `.issue` field: `triage` (see above) and `report` (role `implementer`,
+#   `issue` set) — the latter's `tokens`/`duration_s`/`outcome` are recorded
+#   as `metrics`/`metrics_source: "session-log"` in place of the PR comment's
+#   `<!-- metrics {…} -->` footer, since the log already carries them
+#   without needing that footer parsed for this issue. When more than one
+#   `report` line names the same issue, the chronologically LAST one wins.
+#   `--logs` is optional and additive in its OUTPUT: a run without it
+#   behaves exactly as before, sourcing metrics from the footer alone and
+#   triage from the timeline alone.
+#
+#   The saving is a real API saving, not a parse saving (round-1 finding 3).
+#   Issue-level `comments(first: 100)` is fetched for one reason only — the
+#   `<!-- metrics {…} -->` footer — so when the archive already carries an
+#   issue's metrics that sub-selection is waste. Whenever `--logs` yields a
+#   NON-EMPTY metrics map the page query is the LIGHT variant, which omits
+#   the issue-level comments sub-selection entirely; the page's issues are
+#   then partitioned against the archive and the comments of the UNCOVERED
+#   ones only are fetched in a second, aliased `issue(number: N)` request.
+#   A page every one of whose issues the archive covers therefore makes ONE
+#   request and fetches no issue comments at all — that is #289's
+#   "fixture archived log yields metrics without the comments call". The
+#   honest accounting of the other cases, since a saving stated only in the
+#   best case is the reframing this replaces: with no `--logs` (or an
+#   archive with no metrics lines) the query is unchanged and a page costs
+#   one request as before; with `--logs` and PARTIAL coverage a page costs
+#   TWO requests — one light page request plus one comments request for the
+#   uncovered issues — which is the price of the saving being real rather
+#   than notional. PR-level comments are never affected: they carry the
+#   review footers and are always fetched.
+#
+#   An unreadable `--logs` directory is a named argument error, never an
+#   empty archive (round-1 finding 5): `[ -d ]` alone is TRUE for a
+#   `chmod 000` directory whose parent is traversable, so the `*.jsonl`
+#   glob would fail to expand and the run would be byte-identical to one
+#   whose archive covered nothing, silently. Readability and searchability
+#   are checked alongside existence, and a `--logs` directory that IS
+#   readable but holds no event lines is reported on stderr — "I read the
+#   archive and it covered nothing" must be distinguishable from "I could
+#   not read the archive".
 # Class: machine + minimal-heuristics (github-workflow/references/github-tools.md
 #   § "Extraction vs. interpretation"). `--repo` is REQUIRED (#736's outer
 #   boundary): there is no `gh repo view` fallback, and the script reads no
@@ -74,7 +172,10 @@
 #   repos' runs cannot land in one directory by default.
 #
 # Requests: one `gh api graphql` POST per page of up to $PAGE_SIZE merged
-#   PRs. Each page returns, in the same round trip, every linked issue's
+#   PRs — plus, on a `--logs` run whose archive covers only SOME of a
+#   page's issues, one further request fetching just the uncovered issues'
+#   comments (see --logs above; a fully-covered page adds none). Each page
+#   returns, in the same round trip, every linked issue's
 #   labels/milestone/parent/timeline/comments and the PR's own review
 #   comments and diff stats — the REST design this replaces spent 6-8+ calls
 #   per issue record (a `pulls/{n}` call, a `pulls/{n}/comments` call, and
@@ -113,6 +214,7 @@ REFRESH=0
 AGG_ONLY=0
 MIN_REMAINING=1500
 PAGE_SIZE=20
+LOGS_DIR=""
 
 while [ $# -gt 0 ]; do
   case $1 in
@@ -124,6 +226,7 @@ while [ $# -gt 0 ]; do
     --aggregate-only) AGG_ONLY=1; shift ;;
     --min-remaining) MIN_REMAINING=$2; shift 2 ;;
     --page-size) PAGE_SIZE=$2; shift 2 ;;
+    --logs) LOGS_DIR=$2; shift 2 ;;
     *) echo "unknown arg $1" >&2; exit 2 ;;
   esac
 done
@@ -135,6 +238,21 @@ fi
 
 case $MIN_REMAINING in ''|*[!0-9]*) echo "--min-remaining must be a non-negative integer, got '$MIN_REMAINING'" >&2; exit 2 ;; esac
 case $PAGE_SIZE in ''|*[!0-9]*|0) echo "--page-size must be a positive integer, got '$PAGE_SIZE'" >&2; exit 2 ;; esac
+if [ -n "$LOGS_DIR" ]; then
+  if [ ! -d "$LOGS_DIR" ]; then
+    echo "--logs directory not found: $LOGS_DIR" >&2
+    exit 2
+  fi
+  # A chmod 000 directory is still `-d` when its parent is traversable, and
+  # the `*.jsonl` glob below then expands to nothing — indistinguishable
+  # from an archive that covered nothing, with nothing on stderr (round-1
+  # finding 5). Reading the directory needs BOTH read (to list it) and
+  # execute (to stat/open what is listed), so both are checked here.
+  if [ ! -r "$LOGS_DIR" ] || [ ! -x "$LOGS_DIR" ]; then
+    echo "--logs directory is not readable: $LOGS_DIR (need read and execute permission to list and open its *.jsonl files; refusing to read an unreadable archive as an empty one)" >&2
+    exit 2
+  fi
+fi
 
 # The default --out is keyed by repository: two runs against different repos
 # must never land in the same directory and silently pool their records
@@ -171,13 +289,30 @@ aggregate(){
   jq -s --argjson dropped "$dropped" '
     def bucket: if .size_est!=null then .size_est elif .net_loc<=100 then "S" elif .net_loc<=400 then "M" else "L" end;
     def pct(p): sort | if length==0 then null else .[((length-1)*p)|floor] end;
-    def stats: {n:length, cycle_h_p50:(map(.cycle_hours)|pct(0.5)), cycle_h_p80:(map(.cycle_hours)|pct(0.8)), rounds_p50:(map(.rounds)|pct(0.5)), first_pass_rate:((map(select(.rounds==0))|length)/(length|if .==0 then 1 else . end)*100|round), loc_p50:(map(.net_loc)|pct(0.5))};
+    # rounds_p50/first_pass_rate (decision B3, #289) are computed ONLY over
+    # footer-sourced records — a footer-less record carries rounds null and
+    # still counts toward n/cycle/LOC, but never toward these two figures.
+    # rounds_n reports how many of n contributed to them and rounds_excluded
+    # the rest, so a rounds_p50 drawn from a subset of n is never silent.
+    #
+    # first_pass_rate is the share of rounds_n whose `first_pass` is true —
+    # approved at round 1 with no earlier changes_requested (see the header;
+    # round-1 finding 1). The pre-fix predicate was `select(.rounds==0)`,
+    # written for heading-count semantics; the round on a review footer
+    # starts at 1, so under footer sourcing it is unsatisfiable and the
+    # statistic was a structural constant 0.
+    def stats: (map(select(.rounds_source=="footer"))) as $withrounds |
+      {n:length, cycle_h_p50:(map(.cycle_hours)|pct(0.5)), cycle_h_p80:(map(.cycle_hours)|pct(0.8)),
+       rounds_p50:($withrounds|map(.rounds)|pct(0.5)), rounds_n:($withrounds|length),
+       rounds_excluded:(length - ($withrounds|length)),
+       first_pass_rate:(($withrounds|length) as $n | if $n==0 then null else (($withrounds|map(select(.first_pass==true))|length)/$n*100|round) end),
+       loc_p50:(map(.net_loc)|pct(0.5))};
     (map(. + {bucket:bucket})) as $all |
     { repo_median:($all|stats),
       by_size:($all|group_by(.bucket)|map({size:.[0].bucket} + stats)),
       by_area_size:($all|map(. as $r|($r.areas|if length==0 then ["(none)"] else . end)[]|{area:., size:$r.bucket, r:$r})|group_by([.area,.size])|map({area:.[0].area,size:.[0].size} + (map(.r)|stats))),
-      estimate_vs_actual:($all|map(select(.size_est!=null))|map({issue,size_est,net_loc,actual_bucket:(if .net_loc<=100 then "S" elif .net_loc<=400 then "M" else "L" end),cycle_hours,rounds})),
-      completeness:{with_assigned_start:($all|map(select(.start_source=="assigned"))|length), with_estimate:($all|map(select(.size_est!=null))|length), with_metrics:($all|map(select(.metrics!=null))|length), malformed_metrics:($all|map(select(.metrics_malformed==true))|length), with_area:($all|map(select(.areas|length>0))|length), dropped_pr_nodes:$dropped, total:($all|length)},
+      estimate_vs_actual:($all|map(select(.size_est!=null))|map({issue,size_est,net_loc,actual_bucket:(if .net_loc<=100 then "S" elif .net_loc<=400 then "M" else "L" end),cycle_hours,rounds,rounds_source})),
+      completeness:{with_assigned_start:($all|map(select(.start_source=="assigned"))|length), with_estimate:($all|map(select(.size_est!=null))|length), with_metrics:($all|map(select(.metrics!=null))|length), metrics_from_logs:($all|map(select(.metrics_source=="session-log"))|length), malformed_metrics:($all|map(select(.metrics_malformed==true))|length), with_area:($all|map(select(.areas|length>0))|length), with_footer_rounds:($all|map(select(.rounds_source=="footer"))|length), without_footer_rounds:($all|map(select(.rounds_source!="footer"))|length), malformed_review_footers:($all|map(select((.review_footers_malformed//0)>0))|length), first_pass_records:($all|map(select(.first_pass==true))|length), with_triage:($all|map(select(.triage_source!=null))|length), triage_from_logs:($all|map(select(.triage_source=="session-log"))|length), dropped_pr_nodes:$dropped, total:($all|length)},
       parallelism_note:"observed parallelism requires overlapping started..merged windows; see calibration.md" }' "$ISSUES_JSONL" > "$OUT/calibration.json"
   # Observed parallelism. A failure here (one malformed `started`/`merged`
   # value is enough — the expression calls fromdate on every record) must
@@ -213,9 +348,17 @@ aggregate(){
     echo
     echo "Records: $(jq -s length "$ISSUES_JSONL") · completeness: $(jq -c .completeness "$OUT/calibration.json") · observed parallelism: $par_display"
     echo
-    echo "| Area | Size | n | cycle p50 (h) | cycle p80 (h) | rounds p50 | first-pass % | LOC p50 |"
-    echo "|---|---|---|---|---|---|---|---|"
-    jq -r '.by_area_size[]|"| \(.area) | \(.size) | \(.n) | \(.cycle_h_p50) | \(.cycle_h_p80) | \(.rounds_p50) | \(.first_pass_rate) | \(.loc_p50) |"' "$OUT/calibration.json"
+    # rounds n / rounds excl. are columns in their own right (round-1 note
+    # 7, and decision B3's "the exclusion count is printed"): rounds p50 and
+    # first-pass % are computed over the footer-sourced subset alone, so a
+    # reader must be able to see, in the same row, how much of that row's n
+    # contributed to them. first-pass % is "approved at round 1 with no
+    # earlier changes_requested", over rounds n.
+    echo "| Area | Size | n | rounds n | rounds excl. | cycle p50 (h) | cycle p80 (h) | rounds p50 | first-pass % | LOC p50 |"
+    echo "|---|---|---|---|---|---|---|---|---|---|"
+    jq -r '.by_area_size[]|"| \(.area) | \(.size) | \(.n) | \(.rounds_n) | \(.rounds_excluded) | \(.cycle_h_p50) | \(.cycle_h_p80) | \(.rounds_p50) | \(.first_pass_rate) | \(.loc_p50) |"' "$OUT/calibration.json"
+    echo
+    echo "Rounds statistics (decision B3): rounds p50 and first-pass % are computed over the $(jq -r '.repo_median.rounds_n' "$OUT/calibration.json") footer-sourced record(s) only; $(jq -r '.repo_median.rounds_excluded' "$OUT/calibration.json") record(s) carry no review footer, have rounds null, and are excluded from both. first-pass % = approved at round 1 with no earlier changes_requested."
     echo
     echo "By size: $(jq -c '.by_size' "$OUT/calibration.json")"
     echo
@@ -223,6 +366,10 @@ aggregate(){
     echo
     echo "Estimate vs actual (n=$(jq '.estimate_vs_actual|length' "$OUT/calibration.json")): $(jq -c '.estimate_vs_actual' "$OUT/calibration.json")"
   } > "$OUT/calibration.md"
+  # Decision B3: "the exclusion count is printed". On stderr as well as in
+  # the table, so a run watched from a terminal shows how much of the sample
+  # the rounds statistics rest on without opening the file.
+  say "rounds statistics: $(jq -r '.repo_median.rounds_n' "$OUT/calibration.json") of $(jq -r '.repo_median.n' "$OUT/calibration.json") record(s) are footer-sourced; $(jq -r '.repo_median.rounds_excluded' "$OUT/calibration.json") excluded from rounds_p50/first_pass_rate (no review footer, rounds null) — decision B3"
   say "calibration → $OUT/calibration.md"
 }
 
@@ -389,6 +536,53 @@ if [ -f "$STATE" ]; then
   fi
 fi
 
+# ---------------------------------------------------------------------------
+# --logs (#289, optional): build a small lookup object from every archived
+# session-log JSONL file directly under $LOGS_DIR (not recursive) — a
+# per-issue `triage` record and a per-issue `report` (role implementer)
+# metrics record, each keyed by issue number as a string (jq object keys are
+# strings). Absent --logs, this is the empty-map shape below and every
+# record's triage/metrics fall back to the timeline/footer sources exactly
+# as they did before this flag existed.
+# ---------------------------------------------------------------------------
+LOGS_JSON='{"triage":{},"metrics":{}}'
+LIGHT=0   # 1 => page query omits the issue-level comments sub-selection
+if [ -n "$LOGS_DIR" ]; then
+  logs_cat="$OUT/.logs-cat.jsonl"
+  : > "$logs_cat"
+  for f in "$LOGS_DIR"/*.jsonl; do
+    [ -e "$f" ] || continue
+    cat "$f" >> "$logs_cat"
+  done
+  if [ -s "$logs_cat" ]; then
+    LOGS_JSON=$(jq -s '
+      {
+        triage: (map(select(.event=="triage" and .issue!=null))
+                 | map({key:(.issue|tostring), value:{at:.ts, decision:(.decision//null), applied:(.applied//[])}})
+                 | from_entries),
+        metrics: (map(select(.event=="report" and .role=="implementer" and .issue!=null))
+                  | sort_by(.ts)
+                  | group_by(.issue) | map(.[-1])
+                  | map({key:(.issue|tostring), value:{tokens:(.tokens//null), duration_s:(.duration_s//null), outcome:(.outcome//null)}})
+                  | from_entries)
+      }' "$logs_cat") || die "--logs $LOGS_DIR: one or more *.jsonl files could not be parsed as JSONL by jq"
+  else
+    # The directory is readable (checked at argument time) and really held
+    # no event lines. Say so: an archive that covered nothing must not read
+    # the same as one that could not be opened (round-1 finding 5).
+    say "warning: --logs $LOGS_DIR is readable but its *.jsonl files hold no event lines — every record will fall back to the timeline/footer sources, as if --logs had not been passed"
+  fi
+  rm -f "$logs_cat"
+  logs_metrics_n=$(jq -r '.metrics|length' <<<"$LOGS_JSON")
+  logs_triage_n=$(jq -r '.triage|length' <<<"$LOGS_JSON")
+  say "--logs $LOGS_DIR: archive covers $logs_metrics_n issue(s) for metrics and $logs_triage_n for triage"
+  # The light-query saving (round-1 finding 3) only pays when the archive
+  # actually covers metrics: with an empty metrics map every issue would be
+  # uncovered, so the light page query plus a comments request for all of
+  # them would cost one request MORE per page and save nothing.
+  [ "$logs_metrics_n" -gt 0 ] && LIGHT=1
+fi
+
 OWNER="${REPO%%/*}"
 NAME="${REPO#*/}"
 
@@ -419,14 +613,16 @@ query($owner:String!, $name:String!, $cursor:String, $pageSize:Int!) {
             labels(first: 20) { nodes { name } }
             milestone { title }
             parent { number }
-            timelineItems(first: 100, itemTypes: [ASSIGNED_EVENT, CROSS_REFERENCED_EVENT]) {
+            timelineItems(first: 100, itemTypes: [ASSIGNED_EVENT, CROSS_REFERENCED_EVENT, LABELED_EVENT, MILESTONED_EVENT]) {
               nodes {
                 __typename
                 ... on AssignedEvent { createdAt }
                 ... on CrossReferencedEvent { createdAt source { ... on Issue { number } } }
+                ... on LabeledEvent { createdAt }
+                ... on MilestonedEvent { createdAt }
               }
             }
-            comments(first: 100) { nodes { body } }
+            comments(first: 100) { nodes { body } }   # ISSUE-COMMENTS
           }
         }
       }
@@ -441,14 +637,75 @@ GRAPHQL
 # when this branch is taken (a stderr warning names it once).
 QUERY_NOPARENT=$(printf '%s' "$QUERY_FULL" | grep -v '^ *parent { number }$')
 
+# LIGHT variants (round-1 finding 3): the same queries with the ISSUE-level
+# `comments(first: 100)` sub-selection removed — the one marked
+# `# ISSUE-COMMENTS` above. It exists solely to carry the
+# `<!-- metrics {…} -->` footer, so when --logs already supplies an issue's
+# metrics, requesting it is waste. The PR-level comments line is NOT touched:
+# it carries the review footers and is always needed. Stripping by the marker
+# rather than by shape keeps the two `comments(first: 100)` lines apart even
+# if they are later edited to look alike.
+strip_issue_comments(){ grep -v '# ISSUE-COMMENTS$'; }
+QUERY_FULL_LIGHT=$(printf '%s' "$QUERY_FULL" | strip_issue_comments)
+QUERY_NOPARENT_LIGHT=$(printf '%s' "$QUERY_NOPARENT" | strip_issue_comments)
+
 PARENT_SUPPORTED=1
-QUERY="$QUERY_FULL"
+# The query in force is a function of two independent facts — whether this
+# account's schema has Issue.parent, and whether --logs makes the light
+# variant worth using — so it is selected in one place rather than assigned
+# at each of the points either fact changes.
+select_query(){
+  if [ "$PARENT_SUPPORTED" -eq 1 ]; then
+    if [ "$LIGHT" -eq 1 ]; then QUERY="$QUERY_FULL_LIGHT"; else QUERY="$QUERY_FULL"; fi
+  else
+    if [ "$LIGHT" -eq 1 ]; then QUERY="$QUERY_NOPARENT_LIGHT"; else QUERY="$QUERY_NOPARENT"; fi
+  fi
+}
+QUERY=""
+select_query
+[ "$LIGHT" -eq 1 ] && say "--logs: page queries omit the issue-level comments sub-selection; only issues the archive does not cover will have their comments fetched"
 
 RECORD_JQ='
   . as $pr
   | (($pr.comments.nodes) // []) as $prcomments
-  | ([$prcomments[]|select(.body|test("^## PR Review — (Changes Requested|Decomposition Requested)"))]|length) as $rounds
-  | ([$prcomments[]|select(.body|test("^## PR Review — Changes Requested"))|(.body|[scan("\n\\| [0-9]+ \\| (blocker|major|minor)")]|length)]) as $findings
+  | ([$prcomments[]|.body // ""]) as $prbodies
+  # rounds/findings (#289, decision B3 as amended 2026-09-06): the
+  # `<!-- review {…} -->` footer is the ONLY source. There is no heading
+  # fallback — a PR with no parseable footer records rounds null and is
+  # excluded from the rounds statistics by `aggregate` (see header).
+  #
+  # Extraction (round-1 finding 6): `(?m)^…$` anchors each candidate to a
+  # WHOLE LINE, so a footer quoted in prose, indented, or followed by other
+  # text on its line is not a candidate at all; `[^\n]*` keeps a candidate
+  # inside one line even if the regex engine is asked for dotall. `scan`
+  # yields EVERY whole-line candidate in a body rather than the single one
+  # capture() returns, and `last` takes the final candidate: a comment that
+  # quotes a footer example emits its own footer after it. fromjson is tried
+  # PER candidate, never around the whole chain: an unparseable candidate
+  # must not be able to void a valid footer on the same PR.
+  | ([$prbodies[] | [scan("(?m)^<!-- review (\\{[^\n]*\\}) -->$")] | map(.[0]) | last] | map(select(.!=null))) as $footer_raws
+  | ($footer_raws | map(try fromjson catch null)) as $footer_parsed
+  | ($footer_parsed | map(select(.!=null))) as $footers
+  # Counted, not swallowed: a comment whose last whole-line candidate does
+  # not parse is visible in the record and in completeness.
+  | (($footer_raws|length) - ($footers|length)) as $footers_malformed
+  | ([$footers[]|.verdict // ""]) as $verdicts
+  | ($footers|map(.round // 0)|max) as $maxround
+  # first_pass (round-1 finding 1): approved at round 1 with no earlier
+  # changes requested. `rounds==0` — the pre-footer heading-count predicate
+  # — can never hold here, since a review round starts at 1.
+  | (if ($footers|length) == 0 then null
+     else (($verdicts|map(select(.=="changes_requested" or .=="decomposition_requested" or .=="escalated"))|length) == 0)
+          and ($maxround == 1)
+          and (($footers|map(select((.round // 0) == 1))|map(.verdict // "")|any(. == "approved")))
+     end) as $first_pass
+  | (if ($footers|length) > 0 then
+       { rounds: $maxround,
+         findings: ($footers|map((.findings // [])|length)),
+         rounds_source: "footer", first_pass: $first_pass }
+     else
+       { rounds: null, findings: [], rounds_source: null, first_pass: null }
+     end) as $review
   | (($pr.closingIssuesReferences.nodes) // [])[]
   | . as $iss
   | (($iss.labels.nodes // [])|map(.name)) as $labels
@@ -457,14 +714,30 @@ RECORD_JQ='
   | (($iss.timelineItems.nodes) // []) as $tl
   | ([$tl[]|select(.__typename=="AssignedEvent" and .createdAt<$pr.mergedAt)|.createdAt]|min) as $assigned
   | ([$tl[]|select(.__typename=="CrossReferencedEvent" and (.source.number!=null))|.source.number]|unique) as $xref
+  # triage (#289): a log-recorded triage event for this issue wins outright;
+  # without one, the earliest LabeledEvent/MilestonedEvent timeline item is
+  # the fallback source. Neither present -> all three fields null.
+  | ($logs.triage[($iss.number|tostring)]) as $triage_log
+  | ([$tl[]|select(.__typename=="LabeledEvent" or .__typename=="MilestonedEvent")|.createdAt]|sort|.[0]) as $triage_tl_at
+  | (if $triage_log!=null then $triage_log.at
+     elif $triage_tl_at!=null then $triage_tl_at
+     else null end) as $triage_at
+  | (if $triage_log!=null then "session-log" elif $triage_tl_at!=null then "timeline" else null end) as $triage_source
   | (($iss.comments.nodes // [])|map(.body)) as $icomments
   | ([$icomments[]|try capture("<!-- metrics (?<m>\\{.*?\\}) -->";"s") catch null|.m]|map(select(.!=null))|last // "") as $metrics_raw
   # A malformed metrics footer must cost that one field, never the whole
   # record (and never, as it did before, every issue closed by the same PR):
   # it records metrics null with metrics_malformed true, which is what keeps
   # it distinguishable from an issue that simply has no footer.
-  | (if $metrics_raw=="" then null else ($metrics_raw|try fromjson catch null) end) as $metrics
-  | (($metrics_raw!="") and ($metrics==null)) as $metrics_bad
+  | (if $metrics_raw=="" then null else ($metrics_raw|try fromjson catch null) end) as $metrics_footer
+  | (($metrics_raw!="") and ($metrics_footer==null)) as $metrics_bad
+  # An archived session logs "report" (role implementer) line for this
+  # issue is a metrics source in its own right (#289, see --logs above) and
+  # takes precedence over the footer when present: it needs no PR-comment
+  # footer parsed for this issue at all.
+  | ($logs.metrics[($iss.number|tostring)]) as $metrics_log
+  | (if $metrics_log!=null then $metrics_log else $metrics_footer end) as $metrics
+  | (if $metrics_log!=null then "session-log" elif $metrics_footer!=null then "footer" else null end) as $metrics_source
   # size_est comes from the size:* label on the issue (#734, and decision B4
   # of the #201 scope note) — never from the "## Estimate" prose. A
   # size:s|m|l label maps to S|M|L; any other size:* value, or no size label
@@ -485,12 +758,14 @@ RECORD_JQ='
       pr_opened: $pr.createdAt, merged: $pr.mergedAt, closed: $iss.closedAt,
       cycle_hours: (((($pr.mergedAt|fromdateiso8601)-($start|fromdateiso8601))/3600*10|round)/10),
       cycle_days: (((($pr.mergedAt|fromdateiso8601)-($start|fromdateiso8601))/86400*100|round)/100),
-      rounds: $rounds, findings: $findings,
+      rounds: $review.rounds, findings: $review.findings, rounds_source: $review.rounds_source,
+      first_pass: $review.first_pass, review_footers_malformed: $footers_malformed,
+      triage_at: $triage_at, triage_source: $triage_source, triage_decision: ($triage_log.decision // null),
       additions: $pr.additions, deletions: $pr.deletions, files: $pr.changedFiles,
       net_loc: (($pr.additions-$pr.deletions)|if .<0 then -. else . end),
       size_est: $size,
       estimate_text: (if ($cap.e // "")=="" then null else (($cap.e|gsub("\n";" ")|gsub("  +";" "))) end),
-      metrics: $metrics, metrics_malformed: $metrics_bad, deferred: $xref,
+      metrics: $metrics, metrics_source: $metrics_source, metrics_malformed: $metrics_bad, deferred: $xref,
       era: (if $adopt=="" then null elif $iss.createdAt>=$adopt then "post-adoption" else "pre-adoption" end)
     }
 '
@@ -516,7 +791,7 @@ while :; do
     if [ "$PARENT_SUPPORTED" -eq 1 ] && grep -qi "parent" "$OUT/.gql-err"; then
       say "warning: this account's GraphQL schema rejects Issue.parent — retrying without it; every record's parent will be null for this run"
       PARENT_SUPPORTED=0
-      QUERY="$QUERY_NOPARENT"
+      select_query
       resp=$(gh api graphql -f query="$QUERY" -F "owner=$OWNER" -F "name=$NAME" -F "pageSize=$PAGE_SIZE" "${cursor_args[@]}")
     else
       cat "$OUT/.gql-err" >&2
@@ -546,6 +821,56 @@ while :; do
 
   if [ "$PARENT_SUPPORTED" -eq 1 ]; then parent_arg=true; else parent_arg=false; fi
 
+  # -------------------------------------------------------------------------
+  # --logs phase 2 (round-1 finding 3): under the light query this page
+  # carries NO issue-level comments at all, so the saving is a request GitHub
+  # never served, not a footer this script declined to parse. Partition the
+  # page's issues against the archive and fetch the comments of the UNCOVERED
+  # ones only — one further request, or NONE when the archive covers them
+  # all, which is the case #289's Verification names. The fetched comments
+  # are merged back into the page response so RECORD_JQ below sees exactly
+  # the shape it would have seen from a full query.
+  # -------------------------------------------------------------------------
+  if [ "$LIGHT" -eq 1 ]; then
+    uncovered=()
+    while IFS= read -r n; do
+      [ -n "$n" ] && uncovered+=("$n")
+    done < <(jq -r --argjson logs "$LOGS_JSON" '
+      [ .data.repository.pullRequests.nodes[]? | (.closingIssuesReferences.nodes // [])[]? | .number | select(.!=null) ]
+      | unique | map(select($logs.metrics[(tostring)] == null)) | .[]' <<<"$resp")
+    if [ "${#uncovered[@]}" -eq 0 ]; then
+      say "--logs: the archive covers every issue on this page — its issue comments were neither requested nor fetched"
+    else
+      icq="query(\$owner:String!, \$name:String!) { rateLimit { remaining resetAt } repository(owner:\$owner, name:\$name) {"
+      for n in "${uncovered[@]}"; do
+        icq="$icq i${n}: issue(number: ${n}) { number comments(first: 100) { nodes { body } } }"
+      done
+      icq="$icq } }"
+      say "--logs: ${#uncovered[@]} issue(s) on this page are not covered by the archive — fetching only their comments"
+      if ! icresp=$(gh api graphql -f query="$icq" -F "owner=$OWNER" -F "name=$NAME" 2>"$OUT/.gqlic-err"); then
+        cat "$OUT/.gqlic-err" >&2
+        rm -f "$OUT/.gqlic-err"
+        die "--logs: the follow-up issue-comments request failed for ${#uncovered[@]} uncovered issue(s) — refusing to record them as simply having no metrics footer"
+      fi
+      rm -f "$OUT/.gqlic-err"
+      # This request spends budget too, so the guard must see its figure —
+      # and must fail closed on it exactly as it does on a page response.
+      ic_remaining=$(jq -r '.data.rateLimit.remaining // empty' <<<"$icresp")
+      ic_reset=$(jq -r '.data.rateLimit.resetAt // empty' <<<"$icresp")
+      case $ic_remaining in
+        ''|*[!0-9]*) die "unreadable rate limit on the --logs follow-up issue-comments response: rateLimit.remaining is '${ic_remaining:-<absent>}', not a number" ;;
+      esac
+      [ -n "$ic_reset" ] && reset_at="$ic_reset"
+      remaining="$ic_remaining"
+      icmap=$(jq -c '[ .data.repository | to_entries[] | select((.value|type) == "object") | select(.value.number != null)
+                       | {key:(.value.number|tostring), value:(.value.comments // {nodes:[]})} ] | from_entries' <<<"$icresp")         || die "--logs: the follow-up issue-comments response could not be read as JSON"
+      resp=$(jq -c --argjson ic "$icmap" '
+        .data.repository.pullRequests.nodes |= map(
+          .closingIssuesReferences.nodes |= ((. // []) | map(. + {comments: ($ic[(.number|tostring)] // null)}))
+        )' <<<"$resp")         || die "--logs: the fetched issue comments could not be merged back into the page response"
+    fi
+  fi
+
   while IFS= read -r node; do
     prs_seen=$((prs_seen+1))
     merged=$(jq -r '.mergedAt' <<<"$node")
@@ -556,7 +881,7 @@ while :; do
     # issues: name the PR, print jq's own diagnostic, count it, and exit
     # non-zero at the end (exit 3). Silence here is the failure #201 was
     # filed against.
-    if node_recs=$(jq -c --argjson parent_supported "$parent_arg" --arg adopt "$ADOPT" "$RECORD_JQ" <<<"$node" 2>"$OUT/.rec-err"); then
+    if node_recs=$(jq -c --argjson parent_supported "$parent_arg" --arg adopt "$ADOPT" --argjson logs "$LOGS_JSON" "$RECORD_JQ" <<<"$node" 2>"$OUT/.rec-err"); then
       while IFS= read -r rec; do
         [ -n "$rec" ] || continue
         i=$(jq -r '.issue' <<<"$rec")

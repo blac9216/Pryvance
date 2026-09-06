@@ -32,7 +32,15 @@ as above, on the design-record epic's thread.
   **consumes / produces** line wherever a sibling relies on a contract this issue creates
   (an endpoint, a table, a module interface), so parallel implementers agree on names.
 - **Estimate**: size class from the design and the files it will touch
-  ([estimate.md](estimate.md)); **L is split before filing** — two issues with a
+  ([estimate.md](estimate.md)). **Step 0, for an already-filed issue being
+  re-decomposed** (#202): before splitting, run `git log --oneline --grep="#<N>"` and
+  `gh pr list --search "<N>" --state merged` — or, authoritatively,
+  `scripts/delivered.sh --repo owner/name --issues <N>`, which adds the cross-referenced
+  merged PRs a title/body search cannot see, reporting net LOC as `|additions −
+  deletions|` summed over those PRs (the absolute-net convention `history.sh` uses) —
+  and subtract any delivered scope — a fully-delivered issue is closed,
+  never split; an S/M remainder is re-sized in place, never split; only an L remainder
+  reaches the rule below. **L is split before filing** — two issues with a
   dependency beat one that the reviewer will send back for decomposition.
 - **Home**: sub-issue of its domain epic; milestone set.
 - **Board**: Backlog (label + column). The owner releases to Ready.

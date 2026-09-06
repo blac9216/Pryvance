@@ -27,8 +27,26 @@ which fallback was used on every estimate.
 
 ## Per-issue estimate
 
+**Step 0 — delivered-scope check (#202), for an already-filed issue only** (a brand-new
+issue has nothing to check yet): before sizing or re-sizing, run
+`git log --oneline --grep="#<N>"` and `gh pr list --search "<N>" --state merged` — or,
+authoritatively, `scripts/delivered.sh --repo owner/name --issues <N>`, which reports the
+linked closing PRs *and* the cross-referenced merged PRs with net LOC in one GET-only
+request. Its **Net LOC** is `|additions − deletions|` summed over the matched merged
+PRs — the same absolute-net convention `history.sh` records per PR — so a PR that adds
+and removes in equal measure contributes 0, and a pure deletion contributes its size.
+Prefer the script: a title/body search misses a merged PR that references the
+issue only from a commit message, a review comment or a linked branch, and measured on
+2026-09-06 it missed 2 of 5, 3 of 5 and 1 of 1 such PRs on three real issues (#202). If
+a merged PR already references the issue, subtract its scope before
+estimating the remainder: nothing left → close as delivered, never split or re-estimate;
+an S/M remainder → re-size to that bucket and record it below, never split; only an L
+remainder still needs `decompose.md`'s split gate.
+
 Size class from the design: the files it touches, whether it adds a migration, a UI
 screen, a new transport — anything that has historically meant more rounds. Write the
 **Estimate** section: `Size · est. cycle (bucket, n, fallback if any) · est. completion`.
+When step 0 found non-zero delivered scope, add a line: `Delivered so far: PR #… (n
+LOC)` — comma-join multiple PR numbers on one line with one shared LOC total.
 Completion comes from sequencing ([timeline.md](timeline.md)), is rough, and is
 re-projected by github-workflow at every session start.

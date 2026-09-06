@@ -16,7 +16,10 @@
 # combine into a single selection. If any selection is requested, a requested name that matches no
 # milestone is reported on stderr, and matching zero milestones in total is an error (exit 3).
 # --history-dir points at the directory history.sh wrote parallelism.txt into; without it (and without
-# --parallelism) the default --out convention is assumed, and falling back to 1.5 is reported on stderr.
+# --parallelism) the same-run default guess is history.sh's own repo-keyed default --out
+# ($TMPDIR/plan-work-history/<owner>__<name>, derived from this script's own --repo), falling back to
+# the pre-#898 un-keyed ${OUT%/*}/plan-work-history path for a directory an older history.sh wrote.
+# Falling back further, to 1.5, is reported on stderr, naming every path actually tried.
 # A missing, empty, non-numeric, zero, or negative parallelism.txt falls back to 1.5 the same way.
 # --defaults may name any subset of S/M/L; a size it omits keeps its built-in default (S=2, M=6, L=16),
 # and a size named twice resolves last-wins. Empty values, empty parts, trailing commas, non-positive
@@ -105,8 +108,29 @@ fi
 if [ -n "$PAR" ]; then
   : # explicit --parallelism wins
 else
-  hist_dir="${HISTORY_DIR:-${OUT%/*}/plan-work-history}"
-  hist_file="$hist_dir/parallelism.txt"
+  # #898: history.sh's default --out is keyed by repository
+  # ($TMPDIR/plan-work-history/<owner>__<name>), so the same-run default
+  # guess has to look there first — the un-keyed ${OUT%/*}/plan-work-history
+  # path only ever holds parallelism.txt from a history.sh run that predates
+  # that keying. --history-dir (explicit) always wins over both and is never
+  # second-guessed. tried_note names every candidate actually checked so the
+  # "no history at" stderr line below never points at a path this run did
+  # not in fact look at.
+  if [ -n "$HISTORY_DIR" ]; then
+    hist_file="$HISTORY_DIR/parallelism.txt"
+    tried_note="$hist_file"
+  else
+    keyed_file="${TMPDIR:-/tmp}/plan-work-history/${REPO%%/*}__${REPO#*/}/parallelism.txt"
+    unkeyed_file="${OUT%/*}/plan-work-history/parallelism.txt"
+    if [ -s "$keyed_file" ]; then
+      hist_file="$keyed_file"
+    elif [ -s "$unkeyed_file" ]; then
+      hist_file="$unkeyed_file"
+    else
+      hist_file="$keyed_file"
+    fi
+    tried_note="$keyed_file (repo-keyed default --out) then $unkeyed_file (pre-#898 un-keyed layout)"
+  fi
   PAR=$(cat "$hist_file" 2>/dev/null || true)
   if ! is_positive_number "$PAR"; then
     bad_par="$PAR"
@@ -114,7 +138,7 @@ else
     if [ -s "$hist_file" ]; then
       say "parallelism: ignoring unusable parallelism \"$bad_par\" in $hist_file; falling back to default $PAR (pass --parallelism to set it explicitly)"
     else
-      say "parallelism: no history at $hist_file; falling back to default $PAR (pass --history-dir to point at history.sh's --out, or --parallelism to set it explicitly)"
+      say "parallelism: no history at $tried_note; falling back to default $PAR (pass --history-dir to point at history.sh's --out, or --parallelism to set it explicitly)"
     fi
   fi
 fi

@@ -86,6 +86,46 @@
 #    warns once, retries without it, and completes with parent=null.
 #  - the mock's write-verb (mutation) refusal, asserted directly against the
 #    mock per tests/README.md's "Adding a new script's test" step 4.
+#  - footer rounds are the ONLY source (#289, epic #773 decision B3 as
+#    amended): PR #501 carries both a heading-only comment and a
+#    footer-bearing comment for the same round, and rounds/findings come
+#    from the footer alone (rounds_source "footer"). The `footer` scenario
+#    then covers B3 proper — a heading-only PR gets rounds null and no
+#    source, is excluded from rounds_p50/first_pass_rate, and the exclusion
+#    count reaches stderr, calibration.md's rounds-statistics line and its
+#    per-row `rounds n`/`rounds excl.` columns.
+#  - first_pass_rate is defined for footer semantics (round-1 finding 1):
+#    approved at round 1 with no earlier changes_requested, not the
+#    heading-era `rounds==0`, which no footer-sourced record can satisfy.
+#    The `footer` scenario pins a non-zero rate (1 of 6 = 17%), so a
+#    predicate that renders the statistic a structural 0 fails here. Each
+#    of the definition's three clauses is separately load-bearing
+#    (round-2 relay finding 1): #1306, #1307 and #1308 each violate exactly
+#    one, so replacing any single conjunct with `(true)` fails the suite.
+#  - footer extraction takes the LAST WHOLE-LINE candidate and parses each
+#    candidate separately (round-1 finding 6): #1301's body quotes a footer
+#    example (round 99) before its real one and repeats it indented
+#    (round 98) after; #1305's only candidate is malformed JSON and is
+#    counted, not swallowed into a fallback.
+#  - triage (#289): #302's LabeledEvent timeline item is the triage source
+#    when no archived log covers it (triage_source "timeline"); with
+#    --logs, a log's `triage` event for #301 wins outright (triage_source
+#    "session-log").
+#  - --logs (#289): an archived session log supplies #302's metrics
+#    (`report`, role implementer) even though #302's own metrics footer is
+#    malformed JSON — metrics_source "session-log" — and a --logs directory
+#    that does not exist is an argument error (exit 2) before any gh call.
+#  - --logs avoids the issue-comments REQUEST, not just a footer parse
+#    (round-1 finding 3): with partial coverage the page query carries no
+#    issue-level comments sub-selection and a second aliased request fetches
+#    only the uncovered issue; with full coverage the run makes exactly one
+#    request and fetches no issue comments at all. The mock serves a
+#    response shaped to the query, as a real GraphQL server would, so the
+#    saving cannot be asserted vacuously.
+#  - an UNREADABLE --logs directory is a named exit-2 argument error, never
+#    an archive that covered nothing (round-1 finding 5) — `[ -d ]` alone is
+#    true at mode 000; and a readable-but-empty archive is reported on
+#    stderr, so the two states stay distinguishable.
 set -euo pipefail
 LANG=C
 LC_ALL=C
@@ -131,7 +171,8 @@ cat > "$FIXTURES/page_main.json" <<'JSON'
             "createdAt": "2026-01-01T00:00:00Z", "mergedAt": "2026-01-10T12:00:00Z",
             "headRefName": "301-fix",
             "comments": {"nodes": [
-              {"body": "## PR Review — Changes Requested\n\n| # | Severity | Note |\n|---|---|---|\n| 1 | blocker | fix X |\n| 2 | major | fix Y |\n", "createdAt": "2026-01-09T00:00:00Z"}
+              {"body": "## PR Review — Changes Requested\n\n| # | Severity | Note |\n|---|---|---|\n| 1 | blocker | fix X |\n| 2 | major | fix Y |\n", "createdAt": "2026-01-09T00:00:00Z"},
+              {"body": "<!-- review {\"v\":1,\"round\":1,\"verdict\":\"changes_requested\",\"findings\":[{\"id\":\"1\"},{\"id\":\"2\"}]} -->\n## PR Review — Changes Requested\n\nsame round, footer-bearing copy (#289 fixture: a heading-only comment and a footer-bearing comment on the same PR must yield the same round count)", "createdAt": "2026-01-09T00:05:00Z"}
             ]},
             "closingIssuesReferences": {"nodes": [
               {
@@ -156,7 +197,9 @@ cat > "$FIXTURES/page_main.json" <<'JSON'
                 "body": "## Estimate\nSize: S\nest. cycle: 2 h\n",
                 "labels": {"nodes": [{"name": "area:tests"}, {"name": "chore"}]},
                 "milestone": null, "parent": null,
-                "timelineItems": {"nodes": []},
+                "timelineItems": {"nodes": [
+                  {"__typename": "LabeledEvent", "createdAt": "2026-01-01T12:00:00Z"}
+                ]},
                 "comments": {"nodes": [
                   {"body": "<!-- metrics {not json at all} -->"}
                 ]}
@@ -476,6 +519,201 @@ cat > "$FIXTURES/page_cut2.json" <<'JSON'
 JSON
 
 # ---------------------------------------------------------------------------
+# Footer-sourcing fixture (#289 decision B3 as amended, round-1 findings 1,
+# 2 and 6). One page, five merged PRs, one closed issue each:
+#  - #1201/#1301 — a review comment that QUOTES a footer example (round 99)
+#    in prose before emitting its own real footer (round 2), and then closes
+#    with the same shape INDENTED inside an appendix (round 98). The real
+#    footer is the LAST whole-line one: taking the first (capture()) yields
+#    99, and matching without line anchors yields 98. Only "last whole-line
+#    match" yields 2.
+#  - #1202/#1302 — a heading-only `## PR Review — Changes Requested` comment
+#    and no footer at all. Under B3 this is rounds null / rounds_source null,
+#    excluded from the rounds statistics and counted in the exclusion — NOT
+#    a heading-fallback round count.
+#  - #1203/#1303 — one round-1 `approved` footer: the first-pass case. This
+#    is the record that makes first_pass_rate non-zero, which the pre-fix
+#    `select(.rounds==0)` predicate could not do for any footer-sourced
+#    record at all (a review round starts at 1).
+#  - #1204/#1304 — round 1 changes_requested then round 2 approved: approved
+#    in the end, but NOT first-pass.
+#  - #1205/#1305 — a comment whose only whole-line footer candidate is
+#    malformed JSON. It must be counted as malformed and leave the PR
+#    footer-less (rounds null), never voided into a heading-derived number.
+#
+# The last three isolate one clause each of `first_pass`'s three-way
+# conjunction (round-2 relay finding 1). #1303 satisfies all three clauses
+# and #1304 violates all three, so between them no single clause is
+# load-bearing; each PR below violates EXACTLY ONE, which is what makes
+# replacing that clause with `(true)` fail:
+#  - #1206/#1306 — round 1 approved AND round 2 approved, no changes
+#    requested anywhere. Only the `$maxround == 1` clause fails. Approved
+#    twice is not approved first time.
+#  - #1207/#1307 — one round-1 footer whose verdict is neither `approved`
+#    nor any of the three rejected ones. Only the round-1-approval clause
+#    fails: a verdict this script does not recognise (a future value, or a
+#    typo) must never be read as an approval.
+#  - #1208/#1308 — two round-1 footers, changes_requested then approved
+#    (a within-round relay). Only the no-rejected-verdict clause fails:
+#    max round is 1 and round 1 does carry an approval, but changes were
+#    requested before it, so this is not a first pass.
+# ---------------------------------------------------------------------------
+cat > "$FIXTURES/page_footer.json" <<'JSON'
+{
+  "data": {
+    "rateLimit": {"remaining": 4000, "resetAt": "2026-05-01T00:00:00Z"},
+    "repository": {
+      "pullRequests": {
+        "totalCount": 8,
+        "pageInfo": {"hasNextPage": false, "endCursor": "END_FOOTER"},
+        "nodes": [
+          {
+            "number": 1201, "additions": 20, "deletions": 4, "changedFiles": 2,
+            "createdAt": "2026-01-01T00:00:00Z", "mergedAt": "2026-01-06T00:00:00Z",
+            "headRefName": "1301-fix",
+            "comments": {"nodes": [
+              {"body": "## PR Review — Changes Requested\n\nThe footer this skill emits has the shape\n\n<!-- review {\"v\":1,\"round\":99,\"verdict\":\"approved\",\"findings\":[]} -->\n\nquoted just above as an example. My own verdict follows.\n\n<!-- review {\"v\":1,\"round\":2,\"verdict\":\"changes_requested\",\"findings\":[{\"id\":\"1\"},{\"id\":\"2\"},{\"id\":\"3\"}]} -->\n\nAppendix, the same shape indented inside a list item, which is not a footer:\n\n    <!-- review {\"v\":1,\"round\":98,\"verdict\":\"approved\",\"findings\":[]} -->\n", "createdAt": "2026-01-05T00:00:00Z"}
+            ]},
+            "closingIssuesReferences": {"nodes": [
+              {
+                "number": 1301, "title": "Decoy footers in the body", "state": "CLOSED",
+                "createdAt": "2026-01-01T00:00:00Z", "closedAt": "2026-01-06T00:00:00Z",
+                "body": "", "labels": {"nodes": [{"name": "area:tests"}, {"name": "size:s"}]},
+                "milestone": null, "parent": null,
+                "timelineItems": {"nodes": []}, "comments": {"nodes": []}
+              }
+            ]}
+          },
+          {
+            "number": 1202, "additions": 10, "deletions": 2, "changedFiles": 1,
+            "createdAt": "2026-01-01T00:00:00Z", "mergedAt": "2026-01-06T00:00:00Z",
+            "headRefName": "1302-fix",
+            "comments": {"nodes": [
+              {"body": "## PR Review — Changes Requested\n\n| # | Severity | Note |\n|---|---|---|\n| 1 | blocker | pre-footer-era review comment, no footer anywhere |\n", "createdAt": "2026-01-05T00:00:00Z"}
+            ]},
+            "closingIssuesReferences": {"nodes": [
+              {
+                "number": 1302, "title": "Heading-only review, no footer", "state": "CLOSED",
+                "createdAt": "2026-01-01T00:00:00Z", "closedAt": "2026-01-06T00:00:00Z",
+                "body": "", "labels": {"nodes": [{"name": "area:tests"}, {"name": "size:s"}]},
+                "milestone": null, "parent": null,
+                "timelineItems": {"nodes": []}, "comments": {"nodes": []}
+              }
+            ]}
+          },
+          {
+            "number": 1203, "additions": 15, "deletions": 3, "changedFiles": 1,
+            "createdAt": "2026-01-01T00:00:00Z", "mergedAt": "2026-01-06T00:00:00Z",
+            "headRefName": "1303-fix",
+            "comments": {"nodes": [
+              {"body": "## PR Review — Approved\n\nNothing blocking.\n\n<!-- review {\"v\":1,\"round\":1,\"verdict\":\"approved\",\"findings\":[]} -->\n", "createdAt": "2026-01-05T00:00:00Z"}
+            ]},
+            "closingIssuesReferences": {"nodes": [
+              {
+                "number": 1303, "title": "Approved at round 1 -- the first-pass case", "state": "CLOSED",
+                "createdAt": "2026-01-01T00:00:00Z", "closedAt": "2026-01-06T00:00:00Z",
+                "body": "", "labels": {"nodes": [{"name": "area:tests"}, {"name": "size:s"}]},
+                "milestone": null, "parent": null,
+                "timelineItems": {"nodes": []}, "comments": {"nodes": []}
+              }
+            ]}
+          },
+          {
+            "number": 1204, "additions": 25, "deletions": 5, "changedFiles": 2,
+            "createdAt": "2026-01-01T00:00:00Z", "mergedAt": "2026-01-06T00:00:00Z",
+            "headRefName": "1304-fix",
+            "comments": {"nodes": [
+              {"body": "## PR Review — Changes Requested\n\n<!-- review {\"v\":1,\"round\":1,\"verdict\":\"changes_requested\",\"findings\":[{\"id\":\"1\"},{\"id\":\"2\"}]} -->\n", "createdAt": "2026-01-04T00:00:00Z"},
+              {"body": "## PR Review — Approved\n\n<!-- review {\"v\":1,\"round\":2,\"verdict\":\"approved\",\"findings\":[]} -->\n", "createdAt": "2026-01-05T00:00:00Z"}
+            ]},
+            "closingIssuesReferences": {"nodes": [
+              {
+                "number": 1304, "title": "Approved at round 2 -- not first-pass", "state": "CLOSED",
+                "createdAt": "2026-01-01T00:00:00Z", "closedAt": "2026-01-06T00:00:00Z",
+                "body": "", "labels": {"nodes": [{"name": "area:tests"}, {"name": "size:s"}]},
+                "milestone": null, "parent": null,
+                "timelineItems": {"nodes": []}, "comments": {"nodes": []}
+              }
+            ]}
+          },
+          {
+            "number": 1206, "additions": 12, "deletions": 3, "changedFiles": 1,
+            "createdAt": "2026-01-01T00:00:00Z", "mergedAt": "2026-01-06T00:00:00Z",
+            "headRefName": "1306-fix",
+            "comments": {"nodes": [
+              {"body": "## PR Review — Approved\n\n<!-- review {\"v\":1,\"round\":1,\"verdict\":\"approved\",\"findings\":[]} -->\n", "createdAt": "2026-01-04T00:00:00Z"},
+              {"body": "## PR Review — Approved\n\nMerge verification.\n\n<!-- review {\"v\":1,\"round\":2,\"verdict\":\"approved\",\"findings\":[]} -->\n", "createdAt": "2026-01-05T00:00:00Z"}
+            ]},
+            "closingIssuesReferences": {"nodes": [
+              {
+                "number": 1306, "title": "Approved at round 1 AND round 2 -- maxround clause", "state": "CLOSED",
+                "createdAt": "2026-01-01T00:00:00Z", "closedAt": "2026-01-06T00:00:00Z",
+                "body": "", "labels": {"nodes": [{"name": "area:tests"}, {"name": "size:s"}]},
+                "milestone": null, "parent": null,
+                "timelineItems": {"nodes": []}, "comments": {"nodes": []}
+              }
+            ]}
+          },
+          {
+            "number": 1207, "additions": 7, "deletions": 2, "changedFiles": 1,
+            "createdAt": "2026-01-01T00:00:00Z", "mergedAt": "2026-01-06T00:00:00Z",
+            "headRefName": "1307-fix",
+            "comments": {"nodes": [
+              {"body": "## PR Review\n\n<!-- review {\"v\":1,\"round\":1,\"verdict\":\"not_a_known_verdict\",\"findings\":[]} -->\n", "createdAt": "2026-01-05T00:00:00Z"}
+            ]},
+            "closingIssuesReferences": {"nodes": [
+              {
+                "number": 1307, "title": "Round 1, unrecognised verdict -- round-1-approval clause", "state": "CLOSED",
+                "createdAt": "2026-01-01T00:00:00Z", "closedAt": "2026-01-06T00:00:00Z",
+                "body": "", "labels": {"nodes": [{"name": "area:tests"}, {"name": "size:s"}]},
+                "milestone": null, "parent": null,
+                "timelineItems": {"nodes": []}, "comments": {"nodes": []}
+              }
+            ]}
+          },
+          {
+            "number": 1208, "additions": 9, "deletions": 2, "changedFiles": 1,
+            "createdAt": "2026-01-01T00:00:00Z", "mergedAt": "2026-01-06T00:00:00Z",
+            "headRefName": "1308-fix",
+            "comments": {"nodes": [
+              {"body": "## PR Review — Changes Requested\n\n<!-- review {\"v\":1,\"round\":1,\"verdict\":\"changes_requested\",\"findings\":[{\"id\":\"1\"}]} -->\n", "createdAt": "2026-01-04T00:00:00Z"},
+              {"body": "## PR Review — Approved\n\nRelay fix verified within the same round.\n\n<!-- review {\"v\":1,\"round\":1,\"verdict\":\"approved\",\"findings\":[]} -->\n", "createdAt": "2026-01-05T00:00:00Z"}
+            ]},
+            "closingIssuesReferences": {"nodes": [
+              {
+                "number": 1308, "title": "Changes requested then approved, both round 1 -- rejected-verdict clause", "state": "CLOSED",
+                "createdAt": "2026-01-01T00:00:00Z", "closedAt": "2026-01-06T00:00:00Z",
+                "body": "", "labels": {"nodes": [{"name": "area:tests"}, {"name": "size:s"}]},
+                "milestone": null, "parent": null,
+                "timelineItems": {"nodes": []}, "comments": {"nodes": []}
+              }
+            ]}
+          },
+          {
+            "number": 1205, "additions": 5, "deletions": 1, "changedFiles": 1,
+            "createdAt": "2026-01-01T00:00:00Z", "mergedAt": "2026-01-06T00:00:00Z",
+            "headRefName": "1305-fix",
+            "comments": {"nodes": [
+              {"body": "## PR Review — Approved\n\n<!-- review {\"v\":1,\"round\":1,\"verdict\":\"approved\",findings:[]} -->\n", "createdAt": "2026-01-05T00:00:00Z"}
+            ]},
+            "closingIssuesReferences": {"nodes": [
+              {
+                "number": 1305, "title": "Only footer candidate is malformed JSON", "state": "CLOSED",
+                "createdAt": "2026-01-01T00:00:00Z", "closedAt": "2026-01-06T00:00:00Z",
+                "body": "", "labels": {"nodes": [{"name": "area:tests"}, {"name": "size:s"}]},
+                "milestone": null, "parent": null,
+                "timelineItems": {"nodes": []}, "comments": {"nodes": []}
+              }
+            ]}
+          }
+        ]
+      }
+    }
+  }
+}
+JSON
+
+# ---------------------------------------------------------------------------
 # Mock gh: routes `gh api graphql -f query=... -F owner=... -F name=... -F
 # pageSize=... [-F cursor=...]`. Refuses any query whose text is a mutation
 # rather than a query — the GraphQL-shaped analogue of the REST GET-only
@@ -560,11 +798,45 @@ case "${MOCK_GH_SCENARIO:-main}" in
     fi
     raw="$MOCK_GH_FIXTURES/page_noparent.json"
     ;;
+  footer)       raw="$MOCK_GH_FIXTURES/page_footer.json" ;;
   *)
     raw="$MOCK_GH_FIXTURES/page_main.json" ;;
 esac
 [ -f "$raw" ] || { echo "mock gh: no fixture: $raw" >&2; exit 1; }
-cat "$raw"
+
+# --logs phase 2 (#289 round-1 finding 3): the aliased follow-up request
+# `iN: issue(number: N) { comments }`. Served from the SAME page fixture, so
+# the comments the script gets back are exactly the ones the full query would
+# have carried — the only difference is that they had to be asked for.
+if printf '%s' "$query" | grep -q 'issue(number:'; then
+  nums=$(printf '%s' "$query" | grep -oE 'issue\(number: [0-9]+\)' | grep -oE '[0-9]+' | jq -R . | jq -s -c 'map(tonumber)')
+  jq -c --argjson nums "$nums" '
+    { data: { rateLimit: .data.rateLimit,
+              repository: ([ .data.repository.pullRequests.nodes[]?
+                             | (.closingIssuesReferences.nodes // [])[]?
+                             | select(.number != null and (.number as $n | $nums | index($n) | . != null))
+                             | {key: ("i" + (.number|tostring)),
+                                value: {number: .number, comments: (.comments // {nodes:[]})}} ]
+                           | from_entries) } }' "$raw"
+  exit 0
+fi
+
+# A real GraphQL server returns only the fields the query selected. The LIGHT
+# page query omits the issue-level comments sub-selection, so the response
+# must omit it too — otherwise a --logs run would still receive every issue
+# comment and the fixtures asserting the saving would be vacuous. The
+# sub-selection is recognised by its own GraphQL SHAPE, never by any marker
+# comment history.sh happens to write next to it: a mock that keys off the
+# implementation cannot tell a script that made the saving from one that did
+# not. The PR-level line selects `body createdAt` and so does not match.
+if printf '%s' "$query" | grep -qF 'comments(first: 100) { nodes { body } }'; then
+  cat "$raw"
+else
+  jq -c 'if (.data.repository.pullRequests.nodes | type) == "array"
+         then .data.repository.pullRequests.nodes |= map(
+                .closingIssuesReferences.nodes |= ((. // []) | map(del(.comments))))
+         else . end' "$raw"
+fi
 MOCKGH
 chmod +x "$BIN/gh"
 
@@ -690,7 +962,13 @@ if [ -n "$rec" ]; then
   check_eq started       .started       "2026-01-02T00:00:00Z"
   check_eq cycle_hours   .cycle_hours   204
   check_eq cycle_days    .cycle_days    8.5
+  # #289: PR #501 carries BOTH a heading-only comment (pre-footer style) and
+  # a footer-bearing comment for the same round. The footer is authoritative
+  # whenever present, so rounds/findings come from it alone (rounds_source
+  # "footer") — a PR with both must yield the SAME round count as one with
+  # only the footer.
   check_eq rounds        .rounds        1
+  check_eq rounds_source .rounds_source footer
   check_eq findings      '.findings|join(",")' 2
   check_eq additions     .additions     40
   check_eq deletions     .deletions     10
@@ -699,8 +977,13 @@ if [ -n "$rec" ]; then
   # prose must not reach size_est at all (#734 / #201 scope note B4).
   check_eq size_est      .size_est      "M"
   check_eq metrics       '.metrics.attempts' 2
+  check_eq metrics_source .metrics_source footer
   check_eq deferred      '.deferred|join(",")' 205
   check_eq era           .era           post-adoption
+  # #289: no --logs and no LabeledEvent/MilestonedEvent in #301's timeline
+  # fixture -> triage is unknown, not guessed.
+  check_eq triage_source .triage_source null
+  check_eq triage_at     .triage_at     null
 
   got_est=$(jq -r '.estimate_text' <<<"$rec")
   case "$got_est" in
@@ -729,13 +1012,19 @@ if [ -n "$rec302" ]; then
   [ "$got" = "null" ] || report "issue #302 (malformed metrics footer): expected metrics=null, got $got"
   got=$(jq -r '.metrics_malformed' <<<"$rec302")
   [ "$got" = "true" ] || report "issue #302 (malformed metrics footer): expected metrics_malformed=true, got $got"
+  # #289: no --logs cover #302, so triage falls back to its own
+  # LabeledEvent timeline item (the fixture's only timelineItems entry).
+  got=$(jq -r '.triage_source' <<<"$rec302")
+  [ "$got" = "timeline" ] || report "issue #302 (LabeledEvent, no --logs): expected triage_source=timeline, got $got"
+  got=$(jq -r '.triage_at' <<<"$rec302")
+  [ "$got" = "2026-01-01T12:00:00Z" ] || report "issue #302: expected triage_at=2026-01-01T12:00:00Z, got $got"
 fi
 rec301_mm=$(jq -r 'select(.issue==301)|.metrics_malformed' "$ISSUES_JSONL" 2>/dev/null || echo error)
 [ "$rec301_mm" = "false" ] \
   || report "issue #301 (well-formed metrics footer): expected metrics_malformed=false, got $rec301_mm"
 
 completeness=$(jq -c '.completeness' "$CALIBRATION_JSON")
-want_completeness='{"with_assigned_start":1,"with_estimate":1,"with_metrics":1,"malformed_metrics":1,"with_area":2,"dropped_pr_nodes":0,"total":2}'
+want_completeness='{"with_assigned_start":1,"with_estimate":1,"with_metrics":1,"metrics_from_logs":0,"malformed_metrics":1,"with_area":2,"with_footer_rounds":2,"without_footer_rounds":0,"malformed_review_footers":0,"first_pass_records":0,"with_triage":1,"triage_from_logs":0,"dropped_pr_nodes":0,"total":2}'
 [ "$completeness" = "$want_completeness" ] || report "calibration.json completeness: expected $want_completeness, got $completeness"
 
 area_row=$(jq -c --arg size "M" '.by_area_size[]|select(.area=="area:tests" and .size==$size)' "$CALIBRATION_JSON")
@@ -743,6 +1032,311 @@ area_row=$(jq -c --arg size "M" '.by_area_size[]|select(.area=="area:tests" and 
 
 grep -qF "area:tests" "$CALIBRATION_MD" || report "calibration.md: expected the area:tests row in the table"
 grep -qF "PARTIAL" "$CALIBRATION_MD" && report "calibration.md (full run): unexpectedly carries a PARTIAL header"
+
+# ---------------------------------------------------------------------------
+# --logs (#289): an archived session log naming issue #301 (a `triage`
+# event) and issue #302 (a `report` event, role implementer) supplies
+# metrics/triage WITHOUT needing #302's metrics footer read at all — #302's
+# footer is malformed JSON (asserted above), yet with --logs its `metrics`
+# is still populated, sourced from the log instead. Same GraphQL fixture
+# (MOCK_GH_SCENARIO=main) as the run above; only --logs is new.
+# ---------------------------------------------------------------------------
+LOGS_DIR="$WORK/logs"
+mkdir -p "$LOGS_DIR"
+cat > "$LOGS_DIR/session1.jsonl" <<'JSONL'
+{"ts":"2026-01-05T00:00:00Z","event":"triage","claim":"test-01","issue":301,"decision":"homed to milestone M1, no epic parent","applied":["milestone:M1"]}
+{"ts":"2026-01-09T00:00:00Z","event":"report","role":"implementer","agent":"a1","model":"sonnet","issue":302,"pr":501,"tokens":12345,"duration_s":3600,"outcome":"merged"}
+JSONL
+mkdir -p "$OUT/withlogs"
+calls_before_wl=$(grep -c "^CALL gh " "$CALL_LOG" || true)
+set +e
+run_history main "$OUT/withlogs" --logs "$LOGS_DIR"
+rc=$?
+set -e
+[ "$rc" -eq 0 ] || report "--logs scenario: expected exit 0, got $rc"
+WITHLOGS_JSONL="$OUT/withlogs/issues.jsonl"
+wl_calls=$(awk -v n="$calls_before_wl" 'NR>n' "$CALL_LOG")
+
+rec301_log=$(jq -c 'select(.issue==301)' "$WITHLOGS_JSONL")
+[ -n "$rec301_log" ] || report "--logs scenario: no record emitted for issue #301"
+if [ -n "$rec301_log" ]; then
+  got=$(jq -r '.triage_source' <<<"$rec301_log")
+  [ "$got" = "session-log" ] || report "--logs scenario, issue #301: expected triage_source=session-log, got $got"
+  got=$(jq -r '.triage_at' <<<"$rec301_log")
+  [ "$got" = "2026-01-05T00:00:00Z" ] || report "--logs scenario, issue #301: expected triage_at=2026-01-05T00:00:00Z, got $got"
+  got=$(jq -r '.triage_decision' <<<"$rec301_log")
+  [ "$got" = "homed to milestone M1, no epic parent" ] || report "--logs scenario, issue #301: expected triage_decision to be recorded, got $got"
+fi
+
+rec302_log=$(jq -c 'select(.issue==302)' "$WITHLOGS_JSONL")
+[ -n "$rec302_log" ] || report "--logs scenario: no record emitted for issue #302"
+if [ -n "$rec302_log" ]; then
+  got=$(jq -r '.metrics_source' <<<"$rec302_log")
+  [ "$got" = "session-log" ] || report "--logs scenario, issue #302 (malformed footer): expected metrics_source=session-log, got $got"
+  got=$(jq -r '.metrics.tokens' <<<"$rec302_log")
+  [ "$got" = "12345" ] || report "--logs scenario, issue #302: expected metrics.tokens=12345 from the log, got $got"
+  got=$(jq -r '.metrics.outcome' <<<"$rec302_log")
+  [ "$got" = "merged" ] || report "--logs scenario, issue #302: expected metrics.outcome=merged from the log, got $got"
+fi
+
+completeness_logs=$(jq -c '.completeness' "$OUT/withlogs/calibration.json")
+metrics_from_logs=$(jq -r '.metrics_from_logs' <<<"$completeness_logs")
+[ "$metrics_from_logs" = "1" ] || report "--logs scenario: expected completeness.metrics_from_logs=1, got $metrics_from_logs"
+triage_from_logs=$(jq -r '.triage_from_logs' <<<"$completeness_logs")
+[ "$triage_from_logs" = "1" ] || report "--logs scenario: expected completeness.triage_from_logs=1, got $triage_from_logs"
+
+# ---------------------------------------------------------------------------
+# --logs must avoid the issue-comments REQUEST, not merely a footer parse
+# (#289's "fixture archived log yields metrics without the comments call";
+# round-1 finding 3). The archive above covers #302's metrics but not #301's,
+# so this page is PARTIALLY covered:
+#  - the page query must be the LIGHT variant, carrying no issue-level
+#    comments sub-selection at all (the mock serves a response shaped to
+#    match, exactly as a real GraphQL server would);
+#  - a second, aliased request must fetch the comments of the UNCOVERED
+#    issue #301 only, and must not ask for covered #302's;
+#  - #301's metrics must still come from its own footer, which proves that
+#    second request really carried the comments rather than the run quietly
+#    recording "no footer".
+# ---------------------------------------------------------------------------
+wl_call_n=$(printf '%s\n' "$wl_calls" | grep -c "^CALL gh " || true)
+[ "$wl_call_n" -eq 2 ] \
+  || report "--logs (partial coverage): expected 2 gh calls (one light page request + one comments request for the uncovered issue), got $wl_call_n: $wl_calls"
+wl_page_call=$(printf '%s\n' "$wl_calls" | grep -m1 "pullRequests" || true)
+[ -n "$wl_page_call" ] || report "--logs: no page request found in the call log: $wl_calls"
+case "$wl_page_call" in
+  *'comments(first: 100) { nodes { body } }'*) report "--logs: the page query still requests the issue-level comments sub-selection, so the flag avoids no API work at all (round-1 finding 3)" ;;
+esac
+wl_ic_call=$(printf '%s\n' "$wl_calls" | grep -m1 "issue(number:" || true)
+[ -n "$wl_ic_call" ] \
+  || report "--logs: expected a follow-up request fetching the uncovered issue's comments, got: $wl_calls"
+case "$wl_ic_call" in
+  *"issue(number: 301)"*) ;;
+  *) report "--logs: the follow-up request must fetch UNCOVERED issue #301's comments, got: $wl_ic_call" ;;
+esac
+case "$wl_ic_call" in
+  *"issue(number: 302)"*) report "--logs: the follow-up request also fetched COVERED issue #302's comments — the archive already carries its metrics, so requesting them is the waste this flag exists to avoid" ;;
+esac
+# The merge back into the page response is load-bearing: without it #301
+# would look like an issue with no metrics footer.
+got=$(jq -r 'select(.issue==301)|.metrics_source' "$WITHLOGS_JSONL")
+[ "$got" = "footer" ] \
+  || report "--logs (partial coverage), issue #301: expected metrics_source=footer from the separately-fetched comments, got $got"
+got=$(jq -r 'select(.issue==301)|.metrics.attempts' "$WITHLOGS_JSONL")
+[ "$got" = "2" ] \
+  || report "--logs (partial coverage), issue #301: expected metrics.attempts=2 from the separately-fetched comments, got $got"
+
+# Full coverage: an archive naming BOTH issues on the page. Now no issue
+# comments are needed at all, so the run must cost ONE request and fetch no
+# comments — the case #289's Verification bullet names.
+LOGS_ALL="$WORK/logs-all"
+mkdir -p "$LOGS_ALL"
+cat > "$LOGS_ALL/session-all.jsonl" <<'JSONL'
+{"ts":"2026-01-05T00:00:00Z","event":"triage","claim":"test-01","issue":301,"decision":"homed to milestone M1","applied":["milestone:M1"]}
+{"ts":"2026-01-09T00:00:00Z","event":"report","role":"implementer","agent":"a1","model":"sonnet","issue":301,"pr":501,"tokens":11111,"duration_s":1800,"outcome":"merged"}
+{"ts":"2026-01-09T00:00:00Z","event":"report","role":"implementer","agent":"a1","model":"sonnet","issue":302,"pr":501,"tokens":12345,"duration_s":3600,"outcome":"merged"}
+JSONL
+mkdir -p "$OUT/logsall"
+calls_before_la=$(grep -c "^CALL gh " "$CALL_LOG" || true)
+set +e
+run_history main "$OUT/logsall" --logs "$LOGS_ALL"
+rc=$?
+set -e
+[ "$rc" -eq 0 ] || report "--logs (full coverage): expected exit 0, got $rc (stderr: $(cat "$OUT/logsall.stderr.log"))"
+la_calls=$(awk -v n="$calls_before_la" 'NR>n' "$CALL_LOG")
+la_call_n=$(printf '%s\n' "$la_calls" | grep -c "^CALL gh " || true)
+[ "$la_call_n" -eq 1 ] \
+  || report "--logs (full coverage): expected exactly 1 gh call — the archive covers every issue on the page, so no comments request is needed — got $la_call_n: $la_calls"
+printf '%s\n' "$la_calls" | grep -q "issue(number:" \
+  && report "--logs (full coverage): the run still fetched issue comments although the archive covered every issue (round-1 finding 3)"
+case "$la_calls" in
+  *'comments(first: 100) { nodes { body } }'*) report "--logs (full coverage): the page query still carried the issue-level comments sub-selection" ;;
+esac
+grep -qF "covers every issue on this page" "$OUT/logsall.stderr.log" \
+  || report "--logs (full coverage): expected the run to say it fetched no issue comments, got: $(cat "$OUT/logsall.stderr.log")"
+for n in 301 302; do
+  got=$(jq -r "select(.issue==$n)|.metrics_source" "$OUT/logsall/issues.jsonl")
+  [ "$got" = "session-log" ] || report "--logs (full coverage), issue #$n: expected metrics_source=session-log, got $got"
+done
+
+# The saving is conditional on coverage, not on the flag: without --logs the
+# SAME page is fetched with the issue-comments sub-selection in one call.
+nolog_page_call=$(grep "^CALL gh " "$CALL_LOG" | grep -m1 "pullRequests" || true)
+case "$nolog_page_call" in
+  *'comments(first: 100) { nodes { body } }'*) ;;
+  *) report "without --logs the page query should still request issue comments (there is no other source for the metrics footer), got: $nolog_page_call" ;;
+esac
+
+# --logs pointed at a directory that does not exist is an argument error
+# (exit 2), before any gh call.
+run_history_negative nologsdir --repo "$REPO" --logs "$WORK/no-such-logs-dir"
+[ "$NEG_RC" -eq 2 ] || report "--logs missing dir: expected exit 2, got $NEG_RC"
+grep -qF -- "--logs directory not found" "$OUT/nologsdir.stderr.log" \
+  || report "--logs missing dir: expected the 'directory not found' message, got: $(cat "$OUT/nologsdir.stderr.log")"
+
+# ---------------------------------------------------------------------------
+# An UNREADABLE --logs directory is a named argument error, never an archive
+# that covered nothing (round-1 finding 5). `[ -d ]` is true for a chmod 000
+# directory whose parent is traversable, so the pre-fix guard did not fire,
+# the `*.jsonl` glob expanded to nothing, and the run was byte-identical to
+# one whose archive matched no issue — silently. Under the FULL mock env via
+# run_history_negative, so the stop is also asserted to precede any gh call.
+# ---------------------------------------------------------------------------
+UNREADABLE_LOGS="$WORK/logs-unreadable"
+mkdir -p "$UNREADABLE_LOGS"
+cp "$LOGS_DIR/session1.jsonl" "$UNREADABLE_LOGS/session1.jsonl"
+chmod 000 "$UNREADABLE_LOGS"
+if [ -r "$UNREADABLE_LOGS" ] && [ -x "$UNREADABLE_LOGS" ]; then
+  # root (or an ACL) ignores mode 000, so the case cannot be staged; say so
+  # loudly rather than passing vacuously.
+  echo "SKIP: unreadable --logs directory case — the directory is still readable at mode 000 (running as uid $(id -u)?)" >&2
+else
+  run_history_negative unreadablelogs --repo "$REPO" --out "$OUT/unreadablelogs" --logs "$UNREADABLE_LOGS"
+  [ "$NEG_RC" -eq 2 ] \
+    || report "--logs unreadable dir: expected exit 2, got $NEG_RC (an unreadable archive must never read as an empty one)"
+  grep -qF -- "--logs directory is not readable" "$OUT/unreadablelogs.stderr.log" \
+    || report "--logs unreadable dir: expected a named 'not readable' error, got: $(cat "$OUT/unreadablelogs.stderr.log")"
+  grep -qF "$UNREADABLE_LOGS" "$OUT/unreadablelogs.stderr.log" \
+    || report "--logs unreadable dir: the error must name the directory, got: $(cat "$OUT/unreadablelogs.stderr.log")"
+fi
+chmod 755 "$UNREADABLE_LOGS"
+
+# A readable --logs directory holding no event lines is reported too, so
+# "the archive covered nothing" stays distinguishable from "I could not read
+# the archive" (the pair of states finding 5 is about).
+EMPTY_LOGS="$WORK/logs-empty"
+mkdir -p "$EMPTY_LOGS"
+: > "$EMPTY_LOGS/empty.jsonl"
+mkdir -p "$OUT/emptylogs"
+set +e
+run_history main "$OUT/emptylogs" --logs "$EMPTY_LOGS"
+rc=$?
+set -e
+[ "$rc" -eq 0 ] || report "--logs empty archive: expected exit 0, got $rc"
+grep -qF "hold no event lines" "$OUT/emptylogs.stderr.log" \
+  || report "--logs empty archive: expected a warning that the archive is readable but empty, got: $(cat "$OUT/emptylogs.stderr.log")"
+
+# ---------------------------------------------------------------------------
+# Footer sourcing under decision B3 as amended (#289; round-1 findings 1, 2
+# and 6). Five PRs, five records — see the page_footer.json comment above for
+# what each one stages.
+# ---------------------------------------------------------------------------
+mkdir -p "$OUT/footer"
+set +e
+run_history footer "$OUT/footer"
+rc=$?
+set -e
+[ "$rc" -eq 0 ] || report "footer scenario: expected exit 0, got $rc (stderr: $(cat "$OUT/footer.stderr.log"))"
+F_JSONL="$OUT/footer/issues.jsonl"
+F_JSON="$OUT/footer/calibration.json"
+F_MD="$OUT/footer/calibration.md"
+
+fcheck(){ # issue, jq path, expected
+  local n="$1" path="$2" want="$3" got
+  got=$(jq -r "select(.issue==$n)|$path" "$F_JSONL" 2>/dev/null || echo error)
+  [ "$got" = "$want" ] || report "footer scenario, issue #$n: expected $path=$want, got $got"
+}
+
+# #1301: the body carries a quoted decoy footer (round 99) BEFORE the real
+# one and an indented copy (round 98) AFTER it. Taking capture()'s first
+# match yields 99; matching without line anchors yields 98; only the last
+# WHOLE-LINE match yields the real 2.
+fcheck 1301 .rounds 2
+fcheck 1301 .rounds_source footer
+fcheck 1301 '.findings|join(",")' 3
+fcheck 1301 .first_pass false
+fcheck 1301 .review_footers_malformed 0
+
+# #1302: heading-only, no footer anywhere. B3: rounds null, no source, and
+# excluded from the rounds statistics — never a heading-derived count.
+fcheck 1302 .rounds null
+fcheck 1302 .rounds_source null
+fcheck 1302 .first_pass null
+fcheck 1302 '.findings|length' 0
+
+# #1303: approved at round 1, nothing requested earlier -> first pass.
+fcheck 1303 .rounds 1
+fcheck 1303 .first_pass true
+# #1304: changes requested at round 1, approved at round 2 -> not first pass.
+fcheck 1304 .rounds 2
+fcheck 1304 .first_pass false
+
+# `first_pass` is a three-way conjunction, and #1303 (all three clauses hold)
+# against #1304 (all three fail) leaves every clause individually redundant —
+# each could be replaced by `(true)` with the suite still green (round-2 relay
+# finding 1). The three records below each violate EXACTLY ONE clause, so each
+# clause is separately load-bearing. All three must also still count toward
+# rounds_n: they are footer-sourced records, merely not first passes.
+#
+# #1306 — round 1 approved AND round 2 approved, nothing ever requested. Only
+# `$maxround == 1` fails. Approved twice is not approved first time; without
+# this clause the record would be counted a first pass.
+fcheck 1306 .rounds 2
+fcheck 1306 .rounds_source footer
+fcheck 1306 .first_pass false
+# #1307 — one round-1 footer carrying a verdict this script does not
+# recognise. Only the round-1-approval clause fails: an unknown verdict (a
+# future value, or a typo) must never be read as an approval.
+fcheck 1307 .rounds 1
+fcheck 1307 .rounds_source footer
+fcheck 1307 .first_pass false
+# #1308 — changes requested and then approved, both within round 1. Only the
+# no-rejected-verdict clause fails: max round is 1 and round 1 does carry an
+# approval, so without that clause this would read as a first pass.
+fcheck 1308 .rounds 1
+fcheck 1308 .rounds_source footer
+fcheck 1308 .first_pass false
+# #1305: the only whole-line candidate does not parse. Counted, not
+# swallowed, and the PR stays footer-less rather than falling back.
+fcheck 1305 .rounds null
+fcheck 1305 .rounds_source null
+fcheck 1305 .review_footers_malformed 1
+
+f_median=$(jq -c '.repo_median' "$F_JSON")
+got=$(jq -r '.n' <<<"$f_median");              [ "$got" = "8" ]  || report "footer scenario: expected repo_median.n=8, got $got"
+got=$(jq -r '.rounds_n' <<<"$f_median");       [ "$got" = "6" ]  || report "footer scenario: expected repo_median.rounds_n=6 (the footer-sourced records), got $got"
+got=$(jq -r '.rounds_excluded' <<<"$f_median");[ "$got" = "2" ]  || report "footer scenario: expected repo_median.rounds_excluded=2 (#1302 heading-only, #1305 malformed footer), got $got"
+got=$(jq -r '.rounds_p50' <<<"$f_median");     [ "$got" = "1" ]  || report "footer scenario: expected repo_median.rounds_p50=1 over the six footer-sourced records (rounds 2,1,2,2,1,1), got $got"
+# THE round-1-finding-1 assertion. Exactly one of the six footer-sourced
+# records (#1303) is a first pass, so the true rate is 17% (1/6 rounded). The
+# pre-fix predicate `map(select(.rounds==0))` is unsatisfiable for any
+# footer-sourced record — a review round starts at 1 — so it yields 0 here
+# however many first-pass PRs the sample holds. The rate is also what each
+# per-clause probe moves: relaxing any single clause admits one of #1306,
+# #1307 or #1308 and takes this to 33.
+got=$(jq -r '.first_pass_rate' <<<"$f_median")
+[ "$got" = "17" ] \
+  || report "footer scenario: expected repo_median.first_pass_rate=17 (1 of 6 footer-sourced records approved at round 1), got $got — a structurally-0 rate means the predicate is still the heading-era rounds==0; 33 means a clause of the conjunction is not being applied"
+[ "$got" != "0" ] \
+  || report "footer scenario: first_pass_rate is 0 with a first-pass record in the sample — the statistic is structurally unsatisfiable, which is round-1 finding 1"
+
+f_comp=$(jq -c '.completeness' "$F_JSON")
+while IFS=' ' read -r key want; do
+  [ -n "$key" ] || continue
+  got=$(jq -r ".$key" <<<"$f_comp")
+  [ "$got" = "$want" ] || report "footer scenario: expected completeness.$key=$want, got $got"
+done <<'COMPLETENESS'
+with_footer_rounds 6
+without_footer_rounds 2
+malformed_review_footers 1
+first_pass_records 1
+total 8
+COMPLETENESS
+
+# Decision B3 asks for the exclusion count to be PRINTED. It must reach both
+# stderr and calibration.md, and calibration.md's per-row table must carry
+# rounds n / rounds excl. so a rounds p50 drawn from a subset of n is visible
+# in the row itself (round-1 note 7).
+grep -qF "excluded from rounds_p50/first_pass_rate" "$OUT/footer.stderr.log" \
+  || report "footer scenario: expected the exclusion count on stderr, got: $(cat "$OUT/footer.stderr.log")"
+grep -qF "| rounds n | rounds excl. |" "$F_MD" \
+  || report "footer scenario: calibration.md's table must carry rounds n / rounds excl. columns, got: $(grep -m1 '^| Area' "$F_MD" || echo '<none>')"
+grep -qF "Rounds statistics (decision B3)" "$F_MD" \
+  || report "footer scenario: calibration.md must state which records the rounds statistics rest on"
+grep -qE 'over the 6 footer-sourced record\(s\) only; 2 record\(s\) carry no review footer' "$F_MD" \
+  || report "footer scenario: expected calibration.md's rounds-statistics line to name 6 footer-sourced and 2 excluded, got: $(grep -m1 'Rounds statistics' "$F_MD" || echo '<none>')"
+grep -qF "heading-fallback" "$F_JSONL" \
+  && report "footer scenario: a record still carries rounds_source=heading-fallback — decision B3 forbids the heading fallback outright"
 
 # ---------------------------------------------------------------------------
 # Resume + rate-guard scenario. Run 1 must stop after page 1 (remaining=50
@@ -1182,6 +1776,57 @@ else
     || report "unreadable issues.jsonl: the error must point at a remedy (--refresh), got: $(cat "$OUT/unreadable.stderr.log")"
 fi
 chmod 644 "$OUT/unreadable/issues.jsonl"
+
+# ---------------------------------------------------------------------------
+# Named mutation probe (#778). The suite's own assertions are only worth
+# anything if they fail when the behaviour they describe changes, so one
+# mutation is named here with the assertion it breaks and the message it
+# produces. Probed by hand against a copy of history.sh OUTSIDE the worktree
+# (the splice-restore recipe: never against the tracked file), and recorded
+# in the PR body's Splice results.
+#
+# Mutation: in history.sh's RECORD_JQ, revert the footer extraction to the
+# pre-fix single `capture("<!-- review (?<f>\{.*?\}) -->";"s")` — i.e. the
+# FIRST match anywhere in the body rather than the LAST whole-line one.
+# Assertion broken: the footer scenario's #1301 checks above.
+# Failure message: `FAIL: footer scenario, issue #1301: expected .rounds=2,
+# got 99` — the round taken from the decoy footer the comment merely quotes.
+#
+# Second mutation, for the statistic rather than the extraction: change
+# `select(.first_pass==true)` back to `select(.rounds==0)` in `aggregate`.
+# Assertion broken: the first_pass_rate check in the footer scenario.
+# Failure message: `FAIL: footer scenario: expected
+# repo_median.first_pass_rate=17 (1 of 6 footer-sourced records approved at
+# round 1), got 0 — a structurally-0 rate means the predicate is still the
+# heading-era rounds==0; 33 means a clause of the conjunction is not being
+# applied`.
+#
+# `first_pass` is a three-way conjunction, and an aggregate-level probe like
+# the one above cannot tell which clause is doing the work: with only the
+# all-hold and all-fail fixtures, each clause could be replaced by `(true)`
+# and the suite would still pass (round-2 relay finding 1). Fixtures #1306,
+# #1307 and #1308 each violate exactly ONE clause, so each clause has its own
+# mutation and its own failing assertion. All three mutations replace one
+# conjunct of RECORD_JQ's `$first_pass` expression with `(true)`:
+#
+# Mutation 3 — drop the no-rejected-verdict clause, i.e. replace
+# `(($verdicts|map(select(.=="changes_requested" or ...))|length) == 0)` with
+# `(true)`. Assertion broken: #1308 (changes requested then approved, both in
+# round 1). Failure message: `FAIL: footer scenario, issue #1308: expected
+# .first_pass=false, got true`, alongside `expected
+# repo_median.first_pass_rate=17 …, got 33`.
+#
+# Mutation 4 — drop the max-round clause, i.e. replace `($maxround == 1)`
+# with `(true)`. Assertion broken: #1306 (approved at round 1 AND at round
+# 2). Failure message: `FAIL: footer scenario, issue #1306: expected
+# .first_pass=false, got true`, alongside the same rate assertion at 33.
+#
+# Mutation 5 — drop the round-1-approval clause, i.e. replace the
+# `map(select((.round // 0) == 1))|map(.verdict // "")|any(. == "approved")`
+# conjunct with `(true)`. Assertion broken: #1307 (round 1, unrecognised
+# verdict). Failure message: `FAIL: footer scenario, issue #1307: expected
+# .first_pass=false, got true`, alongside the same rate assertion at 33.
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Hermeticity: the tripwire itself is load-bearing (an unmocked call really
