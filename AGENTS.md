@@ -15,5 +15,7 @@ Before changing Pryvance architecture or domain behavior:
 11. Code/config warnings requiring durable local reasoning should use a `# why:` / `// why:` pointer into the appropriate `docs/rationale/*.md` file.
 12. Update diagrams and prose together when architecture changes.
 13. When a hard-to-reverse, surprising decision changes after its ADR is Accepted, create a new ADR rather than rewriting it.
+14. Before issue-driven implementation or orchestration, read `docs/process/` for repository-specific workflow configuration. In particular, treat `area:*` labels from `docs/process/labels.md` as likely Git diff conflict locks for parallel work, not as product-domain ownership labels.
+15. Work under the repository's canonical `github-workflow` process when that skill is installed; repository-specific commands, worktree rules, validation limits, and conflict areas live in `docs/process/` rather than in ad-hoc chat/session instructions.
 
 Pryvance's target design set is declared in `docs/doc-manifest.md`.
