@@ -1,189 +1,237 @@
 # CONTEXT.md — glossary
 
-The canonical vocabulary of Pryvance. One entry per domain term; implementation details belong in the design set. The design documents describe the feature-complete target architecture; the roadmap only sequences implementation.
+Canonical Pryvance vocabulary. The design set describes the feature-complete target architecture; the roadmap only sequences implementation.
 
 ## Household and identity
 
-**Household** — the single collaboration root represented by one Pryvance installation. Groups people, financial entities, shared planning, filing contexts, and reporting. Not: SaaS tenant, account.
+**Household** — single collaboration root represented by one Pryvance installation. Groups People, Financial Entities, shared planning, tax contexts and reporting. Not: SaaS tenant.
 
-**User Identity** — an authenticated application identity that may represent a Person. Not: Party, Person.
+**User Identity** — authenticated application identity that may represent a Person. Not: Party.
 
-**Household Membership** — link between a User Identity and the Household carrying application role/status. Not: financial ownership.
+**Household Membership** — link between User Identity and Household carrying application role/status. Not: financial ownership.
 
-**Guardian Relationship** — authorized management relationship between a guardian and child Person. Not: Account ownership.
+**Guardian Relationship** — authorized management relationship involving a guardian and child Person. Not: Account ownership.
 
-## Parties, ownership and scopes
+## Parties, ownership, Assets and scope
 
-**Party** — an actor that can own, fund, receive, contribute, or bear responsibility. Initial kinds are Person and Financial Entity. Not: Asset, user login.
+**Party** — actor that can own, fund, receive, contribute or bear responsibility. Initial kinds: Person, Financial Entity. Not: Asset, login.
 
-**Person** — a human Party, including adults and children, whether or not that person has connected Accounts or a User Identity. Not: user.
+**Person** — human Party, including adult/child, with or without User Identity or connected Accounts.
 
-**Financial Entity** — a non-person Party such as LLC, trust, or business. May own Accounts/Assets and may itself be owned by other Parties. Not: property, category, Economic Scope.
+**Financial Entity** — non-person Party such as LLC, trust or business. May own Accounts/Assets and be owned by Parties. Not: Property, Economic Scope.
 
-**Party Ownership** — effective-dated percentage ownership of a Financial Entity by a Party. Ownership chains may be recursive but cannot contain cycles. Not: Account ownership.
+**Party Ownership** — effective-dated economic ownership of a Financial Entity by a Party. Recursive chains allowed; cycles forbidden.
 
-**Asset** — an economically valuable object such as real estate whose ownership/value is tracked separately from the Party that owns it. Not: Financial Entity.
+**Asset** — owned economic item such as real estate whose identity/value is separate from owner Party.
 
-**Asset Ownership** — effective-dated percentage ownership of an Asset by a Party. Not: Economic Scope allocation.
+**Asset Ownership** — effective-dated Party ownership of an Asset. Not: Economic Scope allocation.
 
-**Economic Scope** — canonical target for allocation, planning, and reporting; may represent Household, Person, Financial Entity, or Asset. Not: Account ownership.
+**Economic Scope** — canonical allocation/planning/reporting target representing Household, Person, Financial Entity or Asset. Not: ownership.
 
-**Account** — a financial account whose ownership, visibility, Coverage, statements, and activity are tracked independently. Not: Economic Scope, wallet.
+**Account** — financial account whose ownership, balances, activity, statements, Coverage and visibility are tracked independently.
 
-**Account Ownership** — effective-dated ownership relationship between Party and Account. Not: beneficiary/allocation.
+**Account Ownership** — effective-dated Party→Account ownership relationship. Not: beneficiary/allocation.
+
+**Liability** — canonical economic debt/obligation such as mortgage, loan, policy loan or security-deposit liability; may link to Account/Asset.
+
+**Liability Party Relationship** — effective-dated relationship between Party and Liability with legal role/exposure and optional economic share used for planning/net-worth attribution. Not: Asset ownership.
 
 ## Ledger and source truth
 
-**Source Record** — immutable observation as received from provider, file, document-derived input, manual observation, or other source before application interpretation. Not: Financial Event.
+**Source Record** — immutable observation received from provider, file, Document-derived/manual source or other ingestion channel before interpretation.
 
-**Source Relationship** — immutable relationship between Source Records such as supersedes, pending-posted, correction-of, duplicate-of, or related-source. Not: user edit.
+**Source Relationship** — immutable relationship between Source Records such as supersedes, pending-posted, correction-of, duplicate-of or related-source.
 
-**Reconciliation Link** — association from Source Record evidence to the Financial Event/Account Entry it supports. Not: duplicate detection result alone.
+**Reconciliation Link** — association from Source Record evidence to Financial Event/Account Entry it supports.
 
-**Financial Event** — normalized economic event such as expense, income, transfer, card payment, contribution, distribution, reimbursement, settlement, refund, fee, interest, or investment activity. Not: raw bank row.
+**Financial Event** — normalized economic event such as expense, income, transfer, card payment, contribution, distribution, reimbursement, Settlement, refund, fee, interest or investment activity.
 
-**Account Entry** — change in one Account that participates in a Financial Event. Multiple entries may form a linked transfer/payment. Not: category allocation.
+**Account Entry** — native-currency change in one Account participating in a Financial Event. Multiple entries may form linked transfer/payment/conversion.
 
-**Allocation** — attribution of a Financial Event amount to category and/or Economic Scope. Not: Account Entry, ownership.
+**Financial Event Relationship** — semantic link between normalized events such as refund-of, reversal-of, chargeback-of, reimbursement-for, adjustment-to or fee-for.
 
-**Money** — amount plus native currency. Native amount is never overwritten by reporting conversion. Not: bare decimal.
+**Allocation** — attribution of an economically allocatable Financial Event amount to Category and/or Economic Scope. Not: Account Entry.
 
-**FX Rate Observation** — sourced/provenance-bearing currency conversion rate for an effective time/date. Not: rewritten native amount.
+**Money** — decimal amount plus native currency. Native amount is never overwritten by reporting conversion.
+
+**Economic Amount / Allocation Basis** — Money basis against which event Allocations reconcile when the event is economically allocatable. May differ from Account settlement currency.
+
+**FX Conversion** — actual/observed conversion relationship between native monetary amounts/entries. Not: market reference rate.
+
+**FX Rate Observation** — sourced historical/current currency conversion rate for effective date/time. Not: actual bank settlement unless evidence says so.
+
+**Reporting Currency** — configurable Household default/home currency used for derived views; reports may override it. Not: source currency.
+
+**Account Balance Observation** — sourced balance for an Account at an as-of date/time with native currency and Provenance.
+
+**Account Statement** — evidence-backed period statement for an Account, including statement-specific facts.
+
+**Statement Obligation** — payment requirement derived from statement, such as card statement balance/minimum due.
+
+**Statement Reconciliation** — comparison of statement opening balance + reconciled activity against statement closing balance, including unexplained difference/status.
 
 **Merchant / Counterparty** — canonical external counterparty identity with aliases. Not: raw provider description.
 
-**Category** — validated hierarchical classification for what economic value was for. Not: Economic Scope.
+**Category** — validated hierarchical classification for economic purpose. Not: Economic Scope.
 
 **Rule** — deterministic, inspectable matching/normalization/classification logic. Not: AI prompt.
 
+## Time and calculation history
+
+**Financial Date** — source/business date used for financial-period attribution. Not: UTC knowledge timestamp.
+
+**Knowledge Time** — instant when Pryvance learned, derived, verified or changed information.
+
+**Calculation Run** — reproducibility record for a material derived result containing calculation version, knowledge cutoff, plan/policy versions, reporting currency, inputs/evidence manifest, Coverage, assumptions and outputs.
+
 ## Recurrence and planning
 
-**Recurring Pattern** — accepted recurring financial behavior with cadence/amount expectations derived from explicit or reviewed observations. Not: one-off transaction.
+**Recurring Pattern** — accepted recurring financial behavior with cadence/amount expectations. Not: one-off event.
 
-**Expected Cash Flow** — future expected occurrence produced by accepted recurrence or explicit schedule. Not: observed Financial Event.
+**Expected Cash Flow** — future expected occurrence produced by accepted recurrence or explicit schedule.
 
-**Commitment** — known/estimated required cash use such as mortgage, premium, childcare, tax payment, or card statement payoff. Not: Reserve Bucket.
+**Commitment** — known/estimated required cash use such as mortgage, premium, childcare, tax payment or card payoff.
 
-**Reserve Bucket** — economic earmark of liquid cash for a purpose without requiring a separate physical Account. Not: bank account.
+**Reserve Bucket** — economic earmark of liquid cash for a purpose without requiring separate physical Account.
 
-**Savings Goal** — target amount/date/priority for a future objective such as 529, vacation, vehicle, or major purchase. Not: Reserve Bucket.
+**Savings Goal** — target amount/date/priority for future objective such as 529, vacation, vehicle or major purchase.
 
-**Budget Plan** — planned spending/saving targets for an Economic Scope. Not: Household Funding Plan.
+**Budget Plan** — planned spending/saving targets for an Economic Scope. Not: Funding Plan.
 
-**Budget Plan Version** — effective-dated version of Budget targets/defaults/overrides. Not: overwritten annual row.
+**Budget Plan Version** — effective-dated Budget targets/defaults/overrides.
 
-**Household Funding Plan** — Household rule set for shared Commitments, reserves, goals, buffer, contribution method, eligible-income definition, and correction policy. Not: Budget.
+**Household Funding Plan** — Household rule set for shared Commitments, reserves, goals, buffer, eligible-income definition, contribution method and correction policy.
 
-**Funding Plan Version** — effective-dated configuration of a Household Funding Plan. Not: current percentage only.
+**Funding Plan Version** — effective-dated Funding Plan configuration.
 
-**Contribution** — accepted value supplied toward a Household Funding Plan, including configured cash/direct-deposit contributions and approved shared-spending credits. Not: every transfer.
+**Contribution** — accepted value supplied toward Funding Plan, including configured direct-deposit/transfers and approved shared-spending credits.
 
-**Funding Reconciliation** — comparison of target versus actual accepted shared contributions over time, including cumulative fairness variance and correction policy. Not: interpersonal debt.
+**Funding Reconciliation** — target-vs-actual shared contribution comparison with cumulative fairness variance/correction policy. Not: interpersonal debt.
 
-**Obligation** — explicit debtor/creditor responsibility when direct settlement semantics are intentionally used. Not: ordinary partner funding variance.
+**Obligation** — explicit debtor/creditor responsibility when direct settlement semantics are deliberately chosen.
 
-**Settlement** — Financial Event that reduces/clears an explicit Obligation without creating new income or spending. Not: contribution fairness adjustment.
+**Settlement** — Financial Event reducing/clearing explicit Obligation without creating new income/spending.
 
-**Scenario** — isolated What If projection over observed state plus explicit assumptions. Never mutates observed financial truth. Not: Budget Plan version.
+**Scenario** — isolated What If projection over observed state plus explicit assumptions; never mutates observed truth.
 
-**Scenario Assumption** — explicit hypothetical input to a Scenario. Not: Source Record.
+**Scenario Assumption** — explicit hypothetical input to Scenario.
 
-**Free Cash** — liquid value projected to remain safely spendable after applicable Commitments, required contributions, protected reserves, and configured goal funding for a stated horizon. Not: Account balance.
+**Free Cash** — liquid value projected to remain safely spendable after applicable Commitments, required contributions, protected reserves and configured goal funding for a stated horizon.
 
-## Statements and liabilities
+## Evidence, vault and storage
 
-**Account Statement** — evidence-backed period statement for an Account, including statement-specific facts such as card balance/due date. Not: Financial Event.
+**Stored Object** — immutable original file bytes identified by SHA-256. Not: Document metadata row or user-controlled path.
 
-**Statement Obligation** — required payment derived from a statement, such as credit-card statement balance/minimum due. Not: purchase transaction.
+**Object Replica** — recoverable representation of a Stored Object on a specific Storage Target, hot or cold, raw or archived, with integrity/state metadata.
 
-**Liability** — canonical economic debt/obligation such as mortgage, loan, policy loan, or security-deposit liability; may link to Account/Asset. Not: Funding Reconciliation.
+**Storage Target** — configured location capable of storing object replicas/archive/backup artifacts, such as local volume, mounted HDD/NAS or cloud provider via External Connection.
 
-## Evidence and records
+**Archive Pack** — bounded, immutable, indexed collection of cold Stored Object payloads; may be compressed and locally encrypted depending on target trust.
 
-**Stored Object** — immutable content-addressed original file in private storage. Not: user-controlled filesystem path.
+**Archive Pack Entry** — indexed mapping from Stored Object original identity to its representation/location in Archive Pack.
 
-**Evidence** — source artifact/record supporting a financial fact, match, valuation, extraction, Coverage assertion, or interpretation. Not: attachment label.
+**Rehydration** — durable process that retrieves/decrypts/decompresses archived object, verifies original SHA-256 and creates hot replica.
 
-**Provenance** — metadata explaining why Pryvance believes a fact: source, parser/extractor/matcher/rule/model version, location, confidence, and verification. Not: Audit Entry.
+**Evidence** — source artifact/record supporting a fact, valuation, match, reconciliation, Coverage assertion or interpretation.
+
+**Provenance** — metadata explaining why Pryvance believes a fact: source, parser/extractor/matcher/rule/model version, location, confidence and verification. Not: Audit.
 
 **Audit Entry** — append-only record of who/what changed application state and when. Not: Provenance.
 
-**Receipt** — immutable purchase evidence plus extracted merchant/payment/total facts. Not: Financial Event.
+**Receipt** — immutable purchase evidence plus extracted merchant/payment/total facts.
 
-**Receipt Item** — extracted/verified line item that may carry independent category and Economic Scope allocation. Not: transaction split only.
+**Receipt Item** — extracted/verified line item with independent Category/Economic Scope allocation capability.
 
-**Document** — immutable financial source material such as tax form, statement, pay stub, lease, invoice, policy, illustration, appraisal, or return. Not: Extracted Fact.
+**Document** — immutable financial source material such as U.S. tax form, statement, pay stub, lease, invoice, policy, illustration, appraisal or return.
 
-**Extracted Fact** — structured semantic value derived from Evidence with Provenance/effective/knowledge/verification metadata. Not: source document itself.
+**Extracted Fact** — structured semantic value derived from Evidence with Provenance/effective/knowledge/verification metadata.
 
-**Verification** — user/system confirmation/correction state for a derived fact while preserving original evidence. Not: source mutation.
+**Verification** — user/system confirmation/correction state for derived fact while preserving source evidence.
 
-**Payroll Record** — structured pay-period facts from pay stub/payroll evidence, including gross, taxes, deductions, retirement contributions, benefits, and net pay. Not: bank deposit.
+**Payroll Record** — structured pay-period facts including gross, taxes, deductions, retirement contributions, benefits and net pay.
 
 ## Data quality and review
 
-**Coverage** — known completeness of source data for a resource, scope, date interval, or fact family. Not: confidence.
+**Coverage** — known completeness of source data for resource/scope/date interval/fact family. Not: confidence.
 
-**Review Item** — unresolved uncertainty requiring user judgment, with evidence, candidate resolutions, owning module, and resolution history. Not: Alert.
+**Review Item** — unresolved uncertainty requiring user judgment with evidence/candidate resolutions/owning module/history. Not: Alert.
 
 ## Investments and wealth
 
-**Security / Instrument** — canonical investment instrument identity independent of provider symbol. Not: holding.
+**Security / Instrument** — canonical investment instrument identity independent of provider symbol.
 
-**Investment Transaction** — investment-specific activity such as buy, sell, contribution, dividend, fee, distribution, rollover, or reinvestment linked to the ledger. Not: Household spending by default.
+**Investment Transaction** — investment-specific activity linked to ledger such as buy, sell, contribution, dividend, fee, distribution, rollover or reinvestment.
 
-**Position Snapshot** — sourced holdings/value observation for a Security/Investment Account at an as-of time. Not: transaction history.
+**Position Snapshot** — sourced holdings/value observation for Security/Investment Account at as-of time.
 
-**Price Observation** — sourced Security price/currency observation. Not: manually rewritten position value.
+**Price Observation** — sourced Security price/currency observation.
 
-**Tax Lot** — tracked quantity/cost-basis lot when source Coverage supports it. Not: assumed zero basis.
+**Tax Lot** — tracked quantity/cost-basis lot when Coverage supports it; unknown basis is not zero.
 
-**Valuation Observation** — sourced value estimate/measurement for an Asset or other economic item at an effective date. Not: timeless current value.
+**Valuation Observation** — sourced value estimate/measurement for Asset/economic item at effective date.
 
-**Known Net Worth** — deduplicated net worth calculated only from tracked, permitted economic items and ownership paths, explicitly qualified when Coverage is incomplete. Not: guaranteed total Household net worth.
+**Known Net Worth** — deduplicated net worth from tracked/permitted canonical items and ownership/responsibility paths, explicitly qualified when Coverage incomplete.
 
 ## Insurance
 
-**Insurance Policy** — first-class coverage/financial policy record with owner, insured, beneficiaries, premiums, status, Documents, and type-specific facts. Not: recurring premium transaction.
+**Insurance Policy** — first-class coverage/financial policy record with owner, insured, beneficiaries, premiums, status, Documents and type-specific facts.
 
-**Policy Value Observation** — dated observed cash value, cash surrender value, death benefit, loan balance, or other policy value fact. Not: projection.
+**Policy Value Observation** — dated observed cash value, surrender value, death benefit, loan balance or other policy value fact. Not: projection.
 
-**Policy Illustration** — immutable projected policy-value evidence with assumptions and guaranteed/non-guaranteed series. Not: observed net-worth value.
+**Policy Illustration** — immutable projected policy-value evidence with assumptions and guaranteed/non-guaranteed series.
 
-## Property and tax
+## Property and U.S. tax
 
 **Real Estate Property** — Asset specialization for owned/rental property. Not: Financial Entity.
 
-**Tax Year** — tax reporting year used to group filing contexts/evidence. Not: Budget year.
+**Tax Year** — U.S. tax reporting year used to group filing contexts/evidence. Not: Budget year.
 
-**Tax Filing Context** — year-specific Joint or Individual tax-preparation collaboration/authorization scope. Not: global Visibility Policy override.
+**Tax Filing Context** — year-specific Joint or Individual U.S. tax-preparation collaboration/authorization scope. Not: global Visibility override.
 
-**Filing Access Grant** — explicit filing-context permission to use/view tax Documents/facts for preparation. Not: permanent Household sharing.
+**Filing Access Grant** — explicit filing-context permission to use/view tax Documents/facts for preparation.
 
-**Tax Classification Candidate** — potential tax treatment/category requiring verification. Not: final tax advice/decision.
+**Tax Classification Candidate** — potential U.S. tax treatment/category requiring verification. Not: final tax advice/decision.
 
 ## Privacy, search and integrations
 
-**Visibility Policy** — rules for detail visibility, aggregate inclusion, Household calculation use, Tax Filing Context use, and mutation permission. Not: ownership.
+**Visibility Policy** — rules for detail visibility, aggregate inclusion, Household calculation use, Tax Filing Context use and mutation permission. Not: ownership.
 
-**External Connection** — configured external provider link with authentication method, credential reference, granted scopes/capabilities, owner, and health. Not: OAuth token alone.
+**External Connection** — configured provider link with authentication method, credential reference, granted scopes/capabilities, owner and health.
 
-**External Capability** — permitted provider function such as Bank Data, Mail Read, Mail Send, Cloud Storage, Market Data, AI Inference, or Notification Delivery. Not: provider name.
+**External Capability** — provider function such as Bank Data, Mail Read, Mail Send, Cloud Storage, Market Data, FX Rates, AI Inference or Notification Delivery.
 
-**Alert** — actionable/informational product event such as cash-flow risk, sync failure, anomaly, missing tax document, or backup issue. Not: delivery channel.
+**Mail Ingestion Rule** — explicit mailbox/folder/query/source criteria controlling receipt/document ingestion. Not: general mail-client filter.
 
-**Notification Delivery** — mechanism that delivers an Alert/Insight in-app, push, email, or future adapter. Not: Alert itself.
+**AI Provider** — configured local/remote inference provider behind bounded/redacted Pryvance interface. Not: financial truth source.
 
-**Scheduled Insight** — recurring authorized analytical job that produces an Insight/Alert and then uses normal delivery preferences. Not: unrestricted background AI.
+## Jobs, Alerts and delivery
 
-**AI Provider** — configured local or remote inference provider behind Pryvance's bounded/redacted interface. Not: source of financial truth.
+**Outbox Message** — transactionally committed instruction/event used to materialize required asynchronous Job after domain state commit.
+
+**Job** — durable asynchronous work item with type, priority, schedule, retry/lease/concurrency state and resource references.
+
+**Job Attempt** — one execution attempt of Job with worker/timing/sanitized result/retry metadata.
+
+**Job Schedule** — persistent cadence definition that creates durable Jobs. Not: timer that directly executes domain work.
+
+**Alert** — stable actionable/informational product condition such as cash risk, sync failure, missing tax Document or storage integrity issue. Not: delivery channel.
+
+**Notification Delivery** — mechanism/attempt that delivers Alert/Insight in-app, push, email or future adapter.
+
+**Scheduled Insight** — recurring authorized analytical definition that produces Insight/Alert via normal delivery rules.
 
 ## Backup and recovery
 
-**Backup Set** — point-in-time recoverable collection of database snapshot, referenced immutable objects, and verification manifest. Not: database dump alone.
+**Database Backup** — versioned authenticated/encrypted PostgreSQL logical recovery artifact plus schema/application/catalog metadata.
 
-**Backup Envelope** — authenticated encrypted artifact produced locally from a Backup Set before offsite storage. Not: cloud folder.
+**Object Recovery Snapshot** — manifest proving the set of Stored Objects required by a database snapshot and the recovery-eligible replicas that satisfy each requirement.
 
-**Backup Destination** — replaceable offsite/secondary storage target that stores opaque Backup Envelopes, such as Google Drive or S3-compatible storage. Not: Recovery Secret holder.
+**Recovery Point** — coherent logical recovery unit linking verified Database Backup and verified Object Recovery Snapshot. Not: necessarily one physical file.
 
-**Recovery Secret** — independently stored secret material required to decrypt Backup Envelopes after host loss. Not: provider credential, login password.
+**Backup Set** — logical recovery set represented by a Recovery Point; database/object streams may be physically separate. Not: monolithic zip requirement.
+
+**Backup Envelope** — authenticated encrypted recovery artifact sent to untrusted/offsite storage. May contain database or other recovery artifact; not necessarily all objects.
+
+**Backup Destination** — Storage Target eligible for disaster-recovery artifacts. A cold cloud Storage Target may also be a Backup Destination.
+
+**Recovery Secret** — independently held secret material required to recover encrypted offsite Database Backups/archive/object recovery artifacts after host loss. Not: provider credential.
