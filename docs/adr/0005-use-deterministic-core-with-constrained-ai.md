@@ -5,30 +5,43 @@ Date: 2026-09-05
 
 ## Context
 
-Pryvance will use a local OpenAI-compatible model through LM Studio for merchant normalization, ambiguous classification, receipt/document interpretation, semantic search, and financial analysis. The same system also performs deduplication, reconciliation, budgeting, allocations, privacy enforcement, and financial calculations where nondeterministic behavior would be unsafe and difficult to audit.
+Pryvance uses AI for semantic work such as merchant normalization, ambiguous classification, receipt/document extraction, anomaly explanation, semantic search, tax-record assistance, and financial analysis. The same product also performs deduplication, reconciliation, authorization, budgeting, funding fairness, forecasting, net-worth traversal, and tax-sensitive organization where nondeterministic behavior would be unsafe and difficult to audit.
+
+The expected common deployment uses local LM Studio/OpenAI-compatible inference, but the architecture should not prevent an operator from attaching another local or remote provider later.
 
 ## Decision Drivers
 
-- Keep financial totals and reconciliation reproducible.
-- Allow local AI to add value where ambiguity is genuinely semantic.
-- Prevent unrestricted model access to household financial data and SQL.
-- Make every automated result explainable and reviewable.
-- Permit AI providers/models to change without changing core domain behavior.
+- Keep financial totals, reconciliation and plan calculations reproducible.
+- Allow AI to add value where ambiguity is genuinely semantic.
+- Permit AI provider/model replacement without changing domain behavior.
+- Prevent unrestricted model access to Household data and SQL.
+- Minimize sensitive-data exposure, especially if a remote provider is configured.
+- Make automated results explainable, evidence-linked and reviewable.
 
 ## Considered Options
 
-1. **Deterministic core plus constrained AI tools/structured outputs** — auditable and replaceable; requires explicit tool and validation design.
-2. **AI-first agent with broad database/tool access** — flexible and fast to prototype; weak correctness, authorization, and reproducibility guarantees.
-3. **No AI in the product** — simplest trust model; gives up useful extraction, classification, semantic search, and explanation capabilities.
+1. **Provider-neutral deterministic core + constrained AI tools/structured outputs + redaction gateway** — auditable, privacy-aware and replaceable; requires explicit tooling/validation.
+2. **Local-only AI hard-coded to LM Studio** — strongest product-level locality promise; unnecessarily restricts future operator choice.
+3. **AI-first agent with broad DB/tool access** — flexible/fast to prototype; weak correctness, privacy, authorization and reproducibility.
+4. **No AI** — simplest trust model; gives up useful extraction/search/explanation capabilities.
 
 ## Decision
 
-Pryvance will use deterministic application code for financial truth and expose AI only through bounded inputs, structured outputs, and constrained application tools; AI cannot directly own arithmetic, deduplication, authorization, reconciliation, or unrestricted database mutation.
+Pryvance will keep financial truth in deterministic application code and expose AI through provider-neutral interfaces, bounded/typed application tools, structured outputs, authorization-before-retrieval, and a redaction/minimization gateway.
+
+Local AI is an expected default but not an architectural restriction. Remote AI requires explicit operator configuration/disclosure that selected authorized data may leave the local environment.
+
+Sensitive values such as SSNs, full account/policy identifiers, credentials and recovery secrets are redacted by default. Stable placeholders may preserve semantic relationships where useful.
+
+AI cannot directly own arithmetic, deduplication, authorization, reconciliation, funding/budget calculations, net-worth deduplication, backup cryptography, final tax treatment, or unrestricted database mutation.
 
 ## Consequences
 
-- Model outputs are validated before they affect derived records.
-- Low-confidence or non-reconciling output creates Review Items.
-- Analytics exposed to AI are implemented as typed query tools rather than raw SQL generation.
-- The AI provider is abstracted behind an OpenAI-compatible interface so LM Studio can be replaced.
-- Some AI-assisted features require more application code than an unrestricted agent approach.
+- Model outputs are validated before affecting derived records.
+- Low-confidence/non-reconciling output becomes candidate fact or Review Item.
+- Analytics exposed to AI are typed tools, not raw SQL generation.
+- Tool authorization cannot be widened by model-selected arguments.
+- Search/semantic retrieval follows Visibility Policy before data enters AI context.
+- Provider configuration can support LM Studio or other adapters without changing domain contracts.
+- Remote-provider use remains possible but defaults to minimized/redacted context and is auditable/configurable.
+- Some AI-assisted features require more deterministic application code than an unrestricted agent design.
