@@ -5,30 +5,35 @@ Date: 2026-09-05
 
 ## Context
 
-Pryvance must support personal, shared, child, investment, and rental-property finances without assuming a two-person household or requiring every household member to connect all accounts. Account ownership, economic benefit, contribution responsibility, and reporting scope must remain distinct.
+Pryvance must support arbitrary household members, children, businesses, LLCs, trusts, joint/shared finances, partial participation, investments, and property without hard-coding spouse/child/property-specific ownership fields. Account ownership, legal/economic actors, assets, economic attribution, visibility, and funding responsibility must remain distinct.
+
+A property may be owned directly by a Person or indirectly through a Financial Entity, so treating a property itself as the canonical actor would conflate `who owns` with `what is owned`.
 
 ## Decision Drivers
 
-- Support any number of household members, including future children.
-- Support incomplete participation and partial account visibility.
-- Reuse the same mechanics for rental properties and future financial entities.
-- Avoid hard-coded spouse/owner fields that force later schema rewrites.
-- Keep funding source separate from beneficiary and responsibility.
+- Support any number of household members, including children without connected Accounts.
+- Support Financial Entities that may own Accounts and Assets and may themselves be owned by Parties.
+- Avoid spouse/owner/property-specific foreign keys that force later schema rewrites.
+- Keep actor identity separate from Asset identity and Economic Scope allocation.
+- Allow partial participation/visibility without changing ownership semantics.
 
 ## Considered Options
 
-1. **General Party abstraction with Person and Financial Entity kinds** — flexible and consistent across household/property use cases; requires explicit relationship modeling.
-2. **Separate spouse/child/property tables with feature-specific foreign keys** — straightforward initially; creates duplicated allocation and ownership logic.
-3. **Treat accounts as the primary ownership unit** — simple transaction model; cannot represent personally funded shared expenses or people with no connected accounts cleanly.
+1. **Party abstraction with Person and Financial Entity kinds** — consistent actor model; requires separate Asset/Scope concepts.
+2. **Separate spouse/child/business/property actor tables** — straightforward initially; duplicates ownership/allocation logic and conflates assets with actors.
+3. **Treat Accounts as primary ownership actors** — simple transaction model; cannot represent people/entities with no connected Account or ownership chains cleanly.
 
 ## Decision
 
-Pryvance will use Party as the canonical actor in ownership, allocation, obligation, contribution, and reporting relationships, with Person and Financial Entity as the initial Party kinds.
+Pryvance will use Party as the canonical financial actor, with Person and Financial Entity as the initial Party kinds. Assets and Economic Scopes are separate concepts defined by the domain model; a property is an Asset, not automatically a Financial Entity.
+
+Financial Entities may be owned by one or more Parties through effective-dated percentage relationships. Recursive entity ownership is allowed, but ownership cycles are forbidden.
 
 ## Consequences
 
-- A Person may exist without any connected Account.
-- Children use the same Person model with guardian permissions layered separately.
-- Rental properties are Financial Entities rather than a separate transaction universe.
-- Account ownership never implies economic allocation or settlement responsibility.
-- Reporting scopes can project Household, Person, or Financial Entity views over one ledger.
+- A Person may exist without a User Identity or connected Account.
+- Children use Person plus guardian permissions rather than child-specific ledger tables.
+- LLCs, trusts, and businesses reuse Party ownership/funding semantics.
+- Real estate/property is modeled as Asset and may be owned directly by a Person or by a Financial Entity.
+- Account ownership never implies Economic Scope allocation, visibility, or contribution responsibility.
+- Net-worth traversal can follow Party→Financial Entity→Asset/Account/Liability ownership paths without inventing parallel property accounting.
