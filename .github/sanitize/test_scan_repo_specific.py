@@ -18,6 +18,10 @@ class SanitizerPositiveTests(unittest.TestCase):
         value = "alice" + "@" + "household.test"
         self.assert_caught(value, "non-example email")
 
+    def test_github_domain_is_not_generally_exempt(self):
+        value = "alice" + "@" + "github.com"
+        self.assert_caught(value, "non-example email")
+
     def test_valid_ssn_shape_is_caught(self):
         value = "219" + "-09-9999"
         self.assert_caught(value, "SSN/TIN-shaped")
@@ -49,6 +53,9 @@ class SanitizerNegativeTests(unittest.TestCase):
 
     def test_reserved_example_email_is_allowed(self):
         self.assert_clean("person@example.com")
+
+    def test_git_github_transport_identity_is_allowed(self):
+        self.assert_clean("git@github.com")
 
     def test_invalid_ssn_placeholder_is_allowed(self):
         self.assert_clean("000-00-0000")
