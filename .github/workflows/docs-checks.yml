@@ -1,0 +1,16 @@
+name: docs-checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  design-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rationale pointers resolve
+        run: bash scripts/docs/check-pointers.sh --root .
+      - name: ADR index matches ADR files
+        run: bash scripts/docs/adr-index.sh --root . --check
