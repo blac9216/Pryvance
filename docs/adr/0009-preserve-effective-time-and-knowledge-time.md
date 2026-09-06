@@ -26,7 +26,7 @@ Examples include annual Household funding fairness after a later W-2 establishes
 
 ## Decision
 
-Pryvance will distinguish:
+Pryvance will preserve both effective time and knowledge/audit time for historically meaningful facts, relationships, plans, and recommendations.
 
 - **effective time** — when a fact, ownership relationship, plan version, or policy applies in the modeled financial world;
 - **knowledge/audit time** — when Pryvance learned, derived, recommended, verified, or changed it.
