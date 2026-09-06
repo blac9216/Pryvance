@@ -2,179 +2,396 @@
 
 Kind: explanation
 
-Pryvance is a self-hosted, local-first household financial platform. The initial architecture deliberately favors a small number of deployable units, strong domain boundaries inside the application, immutable source data, deterministic reconciliation, optional local AI enrichment, and encrypted offsite recovery.
+Pryvance is a self-hosted, local-first household financial platform. This document describes the intended feature-complete architecture for the product vision currently approved. It is not limited to the first implementation milestone. The delivery roadmap controls sequencing; later roadmap phases must still conform to this target architecture.
 
-## Context
+The architecture favors one Household root per Pryvance installation, explicit domain boundaries, immutable source evidence, deterministic financial truth, privacy-aware analytics, provider-neutral integrations, optional AI, and encrypted offsite recovery.
+
+## Architecture scope
+
+A Pryvance installation represents one Household. That Household may contain any number of People, Financial Entities, Accounts, Assets, liabilities, tax filing contexts, policies, documents, plans, and reporting scopes. The architecture does not implement SaaS-style multi-tenancy between unrelated households.
+
+A Person may participate without connecting accounts or exposing detailed financial data. Financial cooperation, tax filing, shared planning, and reporting therefore depend on explicit visibility and calculation permissions rather than assumptions that all Household data is globally visible.
+
+## C4 — system context
 
 ```mermaid
 flowchart LR
-    U[Household user] -->|HTTPS via LAN/Tailscale| P[Pryvance]
-    B[Bank / aggregation providers] -->|REST/webhooks or polling| P
-    F[Historical files\nCSV/OFX/QFX] -->|upload| P
-    E[Email provider] -->|OAuth/API polling| P
-    L[LM Studio / OpenAI-compatible AI] <-->|HTTP JSON| P
-    T[Tailscale] -->|private network access| P
-    P --> D[(Financial documents / receipts)]
-    P -->|encrypted backup envelopes only| O[Offsite backup provider\nGoogle Drive / S3 / other]
+    U[Authorized household users] -->|HTTPS via LAN/Tailscale| P[Pryvance]
+    B[Bank / aggregation providers] -->|REST, webhooks, polling| P
+    F[Historical files\nCSV / OFX / QFX / statements] -->|upload/import| P
+    M[Mail providers / local mail bridges] <-->|read receipts / send alerts| P
+    C[Cloud storage providers] <-->|encrypted backup envelopes| P
+    MD[Market-data providers] -->|prices / reference data| P
+    AI[Local or remote AI provider\nOpenAI-compatible or adapter] <-->|bounded, redacted requests| P
+    N[Notification destinations\nPWA push / email / adapters] <-->|deliver alerts| P
+    T[Tailscale / private network] -->|private access| P
 ```
 
-The user is the system owner and primary operator. Other household members may later have separate logins and selective visibility, but the financial model does not require every person to connect accounts. External providers are data sources, not systems of record. Pryvance remains useful when provider coverage is partial by combining provider sync, historical imports, manual facts, documents, and explicit coverage metadata.
+External providers are data sources, delivery targets, or storage dependencies; they are never the source of truth for Pryvance's normalized financial interpretation. Provider choice remains replaceable behind internal interfaces.
 
-Offsite backup providers are outside the confidentiality trust boundary. They store only encrypted Backup Envelopes; they do not receive plaintext database dumps, receipts, documents, or backup encryption keys.
+Offsite backup destinations are outside the confidentiality trust boundary. They receive only encrypted Backup Envelopes and the minimum transport metadata required to store them.
 
-## Container
+AI providers are correctness-untrusted. A local model is the expected default, but the architecture is provider-neutral so an operator may explicitly attach another provider. Sensitive fields are redacted or replaced with stable placeholders before AI requests unless a feature explicitly requires the original value and authorization permits it.
+
+## C4 — containers
 
 ```mermaid
 flowchart TB
     Browser[React PWA\nDesktop + Mobile]
-    App[ASP.NET Core application\nREST API + static React hosting]
-    Worker[Background jobs\ninside ASP.NET host initially]
+    App[ASP.NET Core application\nREST API + React static hosting]
+    Worker[Background jobs\nlogical worker boundary]
     DB[(PostgreSQL)]
-    Files[(Private document store)]
-    AI[LM Studio\nOpenAI-compatible endpoint]
-    Providers[Bank / email / market-data providers]
-    Backup[Offsite backup provider\nGoogle Drive / S3 / other]
+    Files[(Private immutable object store)]
+    Search[(Search / vector index\nlogical dependency, optional initially)]
+    Ext[External connections\nbank, mail, market, notification]
+    AI[AI providers\nlocal or remote adapters]
+    Backup[Backup destinations\nGoogle Drive / S3 / other]
 
-    Browser -->|HTTPS JSON| App
+    Browser -->|HTTPS JSON / binary evidence| App
     App -->|EF Core / SQL| DB
-    App -->|private filesystem/object abstraction| Files
-    App -->|enqueue internal jobs| Worker
+    App -->|authorized object access| Files
+    App -->|queries| Search
+    App -->|enqueue work| Worker
     Worker -->|SQL| DB
-    Worker -->|REST/OAuth| Providers
-    Worker -->|OpenAI-compatible HTTP| AI
-    Worker -->|encrypted backup envelopes| Backup
+    Worker -->|private object access| Files
+    Worker -->|provider adapters| Ext
+    Worker -->|bounded/redacted requests| AI
+    Worker -->|encrypted envelopes| Backup
+    Worker -->|index/update| Search
 ```
 
-Initial Docker Compose topology:
+Initial deployment may place App and Worker in one ASP.NET Core process and omit a dedicated Search service until required. Those are deployment decisions, not domain-boundary shortcuts. Target-state interfaces allow Worker or Search to move into separate containers without changing the domain model.
 
-- `pryvance` — ASP.NET Core host serving the REST API, React static build, background jobs, and backup orchestration.
-- `postgres` — PostgreSQL; reachable only on the Docker network.
-- persistent private storage volume — originals for receipts and documents, referenced by content hash.
+PostgreSQL is reachable only on the internal Docker network. Receipt/document originals are held in private storage and are not exposed as a public filesystem. Remote access is expected through Tailscale or an equivalent private network rather than direct public exposure.
 
-React is compiled into static assets and served by ASP.NET Core. There is no required reverse proxy in the initial topology. Remote mobile access is expected to use Tailscale or an equivalent private overlay; public internet exposure is not an architectural requirement.
-
-The background-job boundary is logical first. It can move to a separate worker container later if workload or fault isolation requires it without changing the domain interfaces. Backup Destination adapters are likewise internal ports so Google Drive or another provider can be replaced without changing backup semantics.
-
-## Component
+## C4 — application components
 
 ```mermaid
 flowchart LR
     subgraph API[ASP.NET Core application]
-      Http[HTTP/API layer]
-      Auth[Identity & authorization]
+      Http[HTTP/API]
+      Identity[Identity, membership & authorization]
       Ledger[Ledger & reconciliation]
-      Household[Household funding & obligations]
-      Budget[Budgeting]
-      Invest[Investments & net worth]
-      Property[Property / entity accounting]
-      Records[Receipts & documents]
+      Scope[Parties, assets & economic scopes]
+      Planning[Budgeting, funding & forecasting]
+      Wealth[Investments, insurance & net worth]
+      Property[Property & liabilities]
+      Records[Receipts, documents & payroll]
+      Tax[Tax workspace]
       Review[Review inbox]
-      Rules[Rules engine]
-      Analytics[Analytics/query services]
+      Rules[Rules & recurring patterns]
+      Analytics[Analytics & scenario engine]
+      SearchC[Search & semantic retrieval]
       AIOrch[AI orchestration]
-      Import[Import & provider adapters]
-      BackupCoord[Backup & restore coordinator]
-      Jobs[Background job scheduler]
+      Integrations[External connections]
+      Notify[Alerts & notification delivery]
+      Audit[Audit & provenance services]
+      BackupCoord[Backup & restore]
+      Jobs[Job scheduler]
     end
 
-    Http --> Auth
+    Http --> Identity
     Http --> Ledger
-    Http --> Household
-    Http --> Budget
-    Http --> Invest
+    Http --> Scope
+    Http --> Planning
+    Http --> Wealth
     Http --> Property
     Http --> Records
+    Http --> Tax
     Http --> Review
     Http --> Analytics
+    Http --> SearchC
 
-    Import --> Ledger
+    Integrations --> Ledger
+    Integrations --> Records
+    Integrations --> Wealth
     Ledger --> Rules
     Ledger --> Review
+    Ledger --> Audit
+    Scope --> Planning
+    Scope --> Wealth
+    Scope --> Property
+    Planning --> Ledger
+    Planning --> Analytics
+    Wealth --> Analytics
+    Property --> Analytics
+    Records --> Tax
     Records --> Review
-    Invest --> Review
-    Household --> Ledger
-    AIOrch --> Review
+    Tax --> Analytics
     AIOrch --> Records
+    AIOrch --> Review
     AIOrch --> Analytics
-    BackupCoord --> Ledger
-    BackupCoord --> Records
-    Jobs --> Import
+    AIOrch --> SearchC
+    SearchC --> Identity
+    Notify --> Identity
+    Notify --> Integrations
+    Jobs --> Integrations
     Jobs --> AIOrch
+    Jobs --> Notify
     Jobs --> BackupCoord
+    Jobs --> Analytics
 ```
 
-### Identity and authorization
+### Identity, membership and authorization
 
-Owns application identities, household membership, guardian relationships, and visibility evaluation. Authorization distinguishes at least three questions: may the viewer see details, may data be included in aggregates, and may data be used in household calculations.
+Owns User Identities, Household Memberships, guardian relationships, roles, filing-context access, and Visibility Policies. A User Identity is not the same thing as a Person. Every installation containing real data requires authentication even if only one User Identity is initially active.
+
+Authorization distinguishes at least:
+
+1. may the viewer see record details;
+2. may data contribute to an aggregate shown to the viewer;
+3. may data be used in a Household calculation without exposing the underlying detail;
+4. may data participate in a Tax Filing Context;
+5. may the viewer mutate ownership, visibility, verification, planning, or administrative state.
+
+These checks apply before data reaches serialization, search, Review, analytics, AI, notifications, exports, counts, autocomplete, evidence traversal, or scheduled insights.
+
+### Parties, assets and economic scopes
+
+Owns People, Financial Entities, recursive entity ownership, Assets, Asset Ownership, Account Ownership, and Economic Scopes. Party answers who can own/fund/receive value. Asset answers what is owned. Economic Scope answers what a financial impact belongs to for allocation, planning, and reporting.
+
+A property is an Asset rather than automatically a Financial Entity. A Financial Entity such as an LLC or trust may own one or more Assets and may itself be partly or wholly owned by People or other Financial Entities. Ownership cycles are forbidden.
+
+Economic Scopes can represent Household, Person, Financial Entity, or Asset views. The same underlying Asset or liability may contribute to multiple visible scopes, but net-worth aggregation deduplicates canonical economic items and follows ownership paths so value is not counted twice.
 
 ### Ledger and reconciliation
 
-Owns immutable Source Records, normalized Financial Events, account activity, deduplication, pending-to-posted transitions, transfer/payment classification, evidence links, and deterministic matching. It never rewrites provider originals.
+Owns immutable Source Records, Source Relationships, normalized Financial Events, Account Entries, deterministic identity/deduplication, pending-to-posted relationships, transfer/payment matching, currency facts, and reconciliation links.
 
-### Household funding and obligations
+A Financial Event may have multiple Account Entries. This supports linked two-sided movements such as checking-to-credit-card payments without treating the payment as spending. Multiple Source Records may support or supersede one another and may reconcile to one event or related entries without rewriting original evidence.
 
-Owns Household Funding Plans, contribution targets, proportional/custom funding methods, Obligations, contribution credits, reimbursements, and Settlements. A personally funded shared expense remains unresolved until its disposition is chosen; it cannot simultaneously count as a contribution credit and an outstanding reimbursement.
+Manual observations use the same Source Record and Provenance model rather than bypassing evidence semantics.
 
-### Budgeting
+### Budgeting, household funding and forecasting
 
-Owns year-specific budgets, category hierarchy, monthly defaults/overrides, YTD expectations, annual remaining budget, variance, and safe-monthly-spend calculations. Changing a future budget does not rewrite historical budgets.
+Owns Budget Plans and versions, Household Funding Plans and versions, Contribution Targets, Funding Reconciliations, Reserve Buckets, Commitments, Savings Goals, Expected Cash Flows, recurring accepted patterns, short-range cash forecasts, and long-range Scenarios.
 
-### Investments and net worth
+Shared-spending fairness is primarily a funding-reconciliation problem, not an interpersonal debt ledger. The system may show contribution variance and carry it forward under a configurable correction policy. Explicit direct Obligations remain available when the Household deliberately chooses debt/settlement semantics.
 
-Owns investment accounts, holdings, investment activity, contribution facts, account/source coverage, valuation snapshots, and Known Net Worth. Cash transfers into investment accounts are not spending.
+Forecasting combines current balances, expected income, committed bills, credit-card statements, recurring expectations, reserves, savings targets, and planned contributions. Scenario projections run against isolated assumptions and never mutate observed financial truth.
 
-### Property and entity accounting
+### Investments, insurance and net worth
 
-Uses Financial Entity parties and allocations rather than a separate accounting universe. Rental-property views are specialized reporting over the same Financial Events, Documents, Evidence, and ownership model.
+Owns investment accounts, Securities/Instruments, holdings, transactions, tax lots/cost basis where known, price observations, valuation snapshots, contribution facts, performance calculations, Insurance Policies, whole-life cash-value facts, policy loans, illustrations, and Known Net Worth.
 
-### Receipts and documents
+Performance calculations publish the method and data coverage required for the result. Unknown or insufficient history produces unavailable/partial results rather than fabricated return metrics.
 
-Stores immutable originals and extracted facts separately. Known financial forms may use deterministic, versioned extractors; AI is reserved for ambiguous recognition or interpretation. Every derived fact carries Provenance.
+Insurance death benefit is coverage, not current net worth. Economically realizable values such as cash surrender value may contribute to net worth, with policy loans reducing attributable value as appropriate.
+
+### Property and liabilities
+
+Owns specialized Asset and Liability facts for real estate and similar tracked property: mortgages, principal/interest/escrow observations, leases, security-deposit liabilities, operating expenses, owner funding, valuations, and repair/capital-treatment candidates.
+
+Tax treatment remains reviewable. AI may suggest a candidate classification but does not silently decide whether an expense is deductible, capital, depreciable, or otherwise tax-sensitive.
+
+### Receipts, documents and payroll
+
+Stores immutable originals by content hash and keeps extracted/verified facts separately. Receipt line items support independent category and Economic Scope allocation. Known financial forms use versioned schemas where practical.
+
+Payroll is a structured financial fact family rather than merely a Document type. Pay stubs may produce gross pay, taxes, deductions, employee retirement contributions, employer contributions, benefits, and net pay, with the net amount reconciled to bank deposits when possible.
+
+Original evidence is retained indefinitely by default. Configurable retention may explicitly delete source material, with warnings that provenance is weakened and older encrypted backups may continue to contain the artifact until those recovery points expire.
+
+### Tax workspace
+
+Tax is a projection and evidence workspace over existing ledger, document, payroll, investment, property, insurance, and extracted-fact data. It does not attempt to become tax-return preparation or e-filing software.
+
+Tax Filing Contexts are year-specific and may be Joint or Individual. A joint context can authorize access to the participants' required tax documents for preparation even when ordinary financial visibility is narrower. An individual context may allow selected private tax facts to participate in Household fairness calculations without revealing the underlying document or detailed fields.
+
+The workspace supports document completeness, evidence collection, W-2/1099/1098-style extraction, receipt/document retrieval, Schedule-E-style organization, candidate tax classifications, accountant exports, and AI-assisted question answering with provenance.
 
 ### Review inbox
 
-Centralizes uncertain outputs across imports, ledger classification, receipt matching, extraction, household allocation, investment reconciliation, and AI suggestions. High-confidence deterministic results bypass Review; uncertain results become Review Items.
+Centralizes uncertain outputs across ingestion, matching, classification, allocation, extracted facts, recurring detection, investment reconciliation, insurance recognition, tax candidates, anomalies, and AI suggestions. Review Items carry evidence, reason, candidate resolution, confidence where relevant, owner module, and resolution history.
 
-### Rules engine
+### Rules and recurring patterns
 
-Applies deterministic matching and normalization before AI. User corrections can create durable rules. Rules are inspectable, prioritized, and reversible.
+Applies deterministic merchant/category/normalization rules and stores accepted Recurring Patterns. Machine or AI analysis may suggest a recurring pattern, anomaly, or forgotten subscription; deterministic pattern definitions drive forecasts after acceptance.
+
+Expected cash flow distinguishes inferred recurrence from known commitments. A missing expected paycheck, changed recurring bill, dormant recurring charge, or unexpected amount increase may produce an Alert or Review Item.
+
+### Analytics and scenario engine
+
+Owns typed deterministic queries, cross-domain projections, trend analysis, anomaly detection, household-funding reconciliation, cash-flow forecasting, net-worth traversal, and What If scenarios.
+
+Analytics can answer both current-knowledge and historical-knowledge questions. Effective dates describe when a fact/policy applies; knowledge/audit timestamps preserve what the system knew at a prior time. This allows both retrospective recalculation with newly discovered evidence and audit of prior recommendations.
+
+### Search and semantic retrieval
+
+Indexes only data the requesting context is allowed to expose. Search authorization is not deferred until result rendering. Semantic search over documents/receipts may use embeddings after structured extraction is mature; indexes retain source identity and authorization metadata so private records cannot leak through matches, counts, snippets, or similarity results.
 
 ### AI orchestration
 
-Exposes narrow tools to a local OpenAI-compatible model. The model may interpret, classify, extract, summarize, and select among bounded options; application code performs arithmetic, reconciliation, authorization, and source-of-truth writes.
+Uses a provider-neutral AI interface. AI endpoints expose bounded application tools and structured schemas, not unrestricted SQL. Sensitive fields such as SSNs, full account numbers, policy/account identifiers, access tokens, and similar values are redacted by default and replaced with stable placeholders when semantic continuity is useful.
 
-### Imports and provider adapters
+The model may classify, extract, normalize, summarize, explain, compare, or choose among bounded candidates. Application code owns arithmetic, authorization, reconciliation, plan calculations, deterministic matching, source-of-truth writes, and validation.
 
-Provider-specific clients map external records into Source Records. Provider choice is replaceable; domain code depends on internal ports rather than Teller, SimpleFIN, a bank API, email provider, or market-data vendor directly.
+### External connections
 
-### Backup and restore coordinator
+Represents provider integrations through capabilities and authentication methods rather than assuming OAuth everywhere. An External Connection records provider, owner, granted capabilities/scopes, authentication method, credential reference, health, and last verification.
 
-Creates a point-in-time Backup Set from a transaction-consistent PostgreSQL logical snapshot plus the immutable receipt/document objects referenced by that snapshot. It writes a versioned manifest with hashes and compatibility metadata, encrypts/authenticates the Backup Set locally, and passes only the encrypted Backup Envelope to a Backup Destination adapter.
+Capabilities include Bank Data, Mail Read, Mail Send, Cloud Storage, Market Data, AI, and Notification Delivery. Authentication methods may include OAuth2, API key, local bridge, app password, client certificate, or provider-specific mechanisms. Credentials are encrypted at rest and never exposed to AI.
 
-Restore downloads an encrypted envelope, decrypts into isolated staging, verifies authentication and manifest hashes, checks application/schema compatibility, and only then permits recovery into the live installation. Backup encryption/recovery keys are independent from destination credentials.
+### Alerts and notification delivery
 
-## Cross-cutting concerns
+Alerts are first-class application facts; delivery is a separate adapter concern. Alerts may arise from backup failure, sync failure, cash-flow risk, credit-card payoff risk, funding shortfall, recurring anomaly, forgotten subscription, missing expected income, document/tax completeness, Review backlog, or scheduled insight.
+
+Initial delivery targets may include in-app, PWA/Web Push, and optional email. Additional delivery mechanisms plug in without changing the alert-producing domain modules.
+
+### Audit and provenance
+
+Provenance explains why Pryvance believes a financial fact: source, extractor/matcher/rule version, confidence, location in evidence, and verification state.
+
+Audit explains who or what changed application state and when. Mutable interpretations, plans, visibility policies, ownership relationships, verification state, rules, settlements, retention settings, and administrative actions produce append-only Audit Entries. Full event sourcing is not required.
+
+### Backup and restore
+
+Creates a point-in-time Backup Set from a transaction-consistent PostgreSQL snapshot plus referenced immutable objects, writes a versioned manifest with hashes and compatibility metadata, encrypts/authenticates locally, and uploads only the opaque Backup Envelope.
+
+Restore decrypts into isolated staging, verifies authentication and every manifest object, checks application/schema compatibility, and only then permits recovery. Provider credentials and backup recovery secrets remain independent.
+
+## Dynamic view — transaction/import reconciliation
+
+```mermaid
+sequenceDiagram
+    participant Provider
+    participant Import as Import Adapter
+    participant Ledger
+    participant Rules
+    participant Review
+
+    Provider->>Import: provider/file records
+    Import->>Ledger: append immutable Source Records
+    Ledger->>Ledger: identify/dedupe/reconcile
+    Ledger->>Ledger: create/update derived Financial Event + Account Entries
+    Ledger->>Rules: deterministic normalization/classification
+    Rules-->>Ledger: accepted deterministic results
+    Ledger->>Review: uncertainty only
+```
+
+## Dynamic view — credit-card payment and payoff risk
+
+```mermaid
+sequenceDiagram
+    participant Card
+    participant Checking
+    participant Ledger
+    participant Forecast
+    participant Alert
+
+    Card->>Ledger: purchases + statement facts
+    Checking->>Ledger: payment transaction
+    Card->>Ledger: matching payment-side transaction
+    Ledger->>Ledger: link Account Entries as one payment event
+    Forecast->>Ledger: balances, statement due, expected income/spend
+    Forecast->>Forecast: project available cash vs full statement payoff
+    Forecast->>Alert: emit risk if payoff margin is insufficient
+```
+
+## Dynamic view — household funding reconciliation
+
+```mermaid
+sequenceDiagram
+    participant Facts as Payroll/W-2/manual facts
+    participant Funding as Funding Plan
+    participant Ledger
+    participant Recon as Funding Reconciliation
+
+    Facts->>Funding: eligible income observations
+    Funding->>Funding: determine effective contribution targets
+    Ledger->>Recon: actual joint contributions / approved shared credits
+    Funding->>Recon: target contributions
+    Recon->>Recon: compute cumulative variance
+    Recon-->>Funding: recommend correction policy / future percentages
+```
+
+Newly discovered historical facts may trigger a retrospective recalculation. The original recommendation and information available at that time remain auditable; the new recommendation becomes effective only from an explicit date.
+
+## Dynamic view — receipt/document interpretation
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Records
+    participant AI
+    participant Ledger
+    participant Review
+
+    User->>Records: upload/capture immutable evidence
+    Records->>AI: bounded/redacted extraction request when useful
+    AI-->>Records: structured candidate facts
+    Records->>Records: deterministic validation/reconciliation
+    Records->>Ledger: deterministic match candidates
+    Records->>Review: unresolved or low-confidence items
+```
+
+## Dynamic view — privacy-safe analytics and AI
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Auth as Authorization
+    participant Query as Typed Query Service
+    participant AI
+
+    User->>Auth: request analytics / AI question
+    Auth->>Query: authorized scope + permitted uses
+    Query->>Query: filter detail/aggregate/calculation access
+    Query-->>AI: minimum bounded data, redacted placeholders
+    AI-->>Query: narrative / structured interpretation
+    Query->>Query: validate and attach evidence references
+    Query-->>User: authorized answer
+```
+
+## Dynamic view — backup and restore
+
+```mermaid
+sequenceDiagram
+    participant Job
+    participant DB
+    participant Files
+    participant Crypto
+    participant Remote
+
+    Job->>DB: transaction-consistent logical snapshot
+    Job->>Files: enumerate referenced immutable objects
+    Job->>Job: build manifest + hashes
+    Job->>Crypto: encrypt/authenticate Backup Set
+    Crypto->>Remote: upload opaque Backup Envelope
+    Remote-->>Job: remote identifier/verification
+    Job->>Job: record backup health
+```
+
+Restore performs the reverse path in isolated staging and never overwrites live data merely because an envelope downloaded successfully.
+
+## Cross-cutting invariants
 
 ### Evidence before interpretation
 
-Financial facts can be supported by multiple pieces of Evidence: provider transaction, receipt, email, statement, or user verification. Derived values never erase their source. Where possible, UI drill-down follows aggregate → Financial Event → Evidence → original artifact.
+Derived values never erase source evidence. UI drill-down should normally support aggregate → economic item/event → extracted/derived fact → Evidence → original artifact.
 
 ### Incomplete coverage is explicit
 
-Analytics must distinguish absence of known data from a known zero. Account and scope coverage include date ranges and fact families. Household totals with incomplete member data use language such as `Known Net Worth` and expose what is included.
+Unknown data is never converted to zero. Reports expose date/fact-family coverage and use qualified labels such as Known Net Worth when Household coverage is incomplete.
+
+### Current truth and historical knowledge are both queryable
+
+Pryvance distinguishes effective time from knowledge/audit time. Historical analytics may be recalculated using facts known today, while audit views can reconstruct what inputs and policies supported an earlier recommendation.
+
+### Multi-currency is native
+
+Monetary facts retain source currency. Household settings define reporting/base currency. FX observations carry source, timestamp/date, and provenance. Reports identify conversion basis and do not mutate native amounts.
 
 ### Deterministic-first processing
 
-The normal processing path is:
+The normal path is:
 
-`source ingest → deterministic identity/deduplication → deterministic reconciliation → rules → AI enrichment when useful → validation → Review when uncertain → user correction → optional learned rule`.
+`source ingest → deterministic identity/deduplication → deterministic reconciliation → rules/accepted recurrence → AI enrichment when useful → deterministic validation → Review when uncertain → user correction → optional durable rule/pattern`.
 
 ### Encrypted offsite recovery
 
-Backup storage providers are transport/storage dependencies, not trusted holders of plaintext. Backups are encrypted locally before upload and use a versioned authenticated envelope. A separately held recovery secret is required so complete host loss is recoverable; losing that secret intentionally makes the encrypted backup unreadable.
-
-A backup is not considered healthy merely because upload succeeded. Pryvance tracks creation, upload, remote identifier, ciphertext size/hash where available, manifest verification, retention state, and restore-test status. Failed or unverified backups never trigger deletion of the last known-good copy.
+Backup destinations store ciphertext, not trusted plaintext. A backup is healthy only when creation, encryption, upload, verification, retention, and restore-test expectations are satisfied.
 
 ### Deployment evolution
 
-The initial monolith is a deployment choice, not a license to create an undifferentiated codebase. Domain modules communicate through explicit application interfaces. Separate worker, search/vector, or provider services may be extracted only when a measured operational need appears.
+The modular monolith is an operational choice, not an architectural limit. Separate worker, search/vector, or provider services may be extracted only when operational evidence justifies the added complexity.
