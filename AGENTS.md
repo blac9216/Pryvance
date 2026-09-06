@@ -4,13 +4,16 @@ Before changing Pryvance architecture or domain behavior:
 
 1. Read `CONTEXT.md` for canonical terminology.
 2. Read `docs/adr/README.md` first, then open only relevant active ADRs.
-3. Read the matching target-state C4/domain/security/API/explanation document from `docs/`.
-4. Treat the design set as the intended feature-complete architecture approved so far. The roadmap sequences implementation; a later roadmap phase is not permission to implement an incompatible shortcut now.
-5. Preserve the design path: decisions are discussed/planned on GitHub, then durable outcomes are recorded in the design set.
-6. Do not commit transient design specs, interrogation transcripts, plans, research notes, or audit gap reports.
-7. A code/configuration warning that needs durable local reasoning should use a `# why:` / `// why:` pointer into the appropriate `docs/rationale/*.md` file.
-8. Update diagrams, domain invariants, API contract, security/privacy rules, and roadmap sequencing together when a change crosses those boundaries.
-9. When a hard-to-reverse, surprising decision with real alternatives changes, create a new ADR rather than rewriting an Accepted ADR. Proposed ADRs may be refined while the architecture PR remains under review.
-10. Do not infer that unimplemented means undesigned. Check the target-state docs before introducing new tables/endpoints/providers.
+3. Read `docs/explanation/architecture.md` and the matching domain/security explanation.
+4. For persistence/schema work, read `docs/reference/data-model.md` before creating migrations.
+5. For async/background work, read `docs/explanation/operations-and-jobs.md`; do not add ad-hoc in-memory queues/timers that bypass the durable Job model.
+6. For document/object storage or backup work, read `docs/explanation/storage-and-recovery.md` and ADR-0007/0014.
+7. For Alert production, use stable types from `docs/reference/alert-catalog.md` or deliberately extend the catalog.
+8. For APIs, read both `docs/reference/api-contract.md` and `docs/reference/operations-api.md` as applicable.
+9. Preserve the design path: durable decisions are recorded in the design set; the roadmap controls sequencing only.
+10. Do not commit transient design specs, interrogation transcripts, plans, research notes, or audit gap reports.
+11. Code/config warnings requiring durable local reasoning should use a `# why:` / `// why:` pointer into the appropriate `docs/rationale/*.md` file.
+12. Update diagrams and prose together when architecture changes.
+13. When a hard-to-reverse, surprising decision changes after its ADR is Accepted, create a new ADR rather than rewriting it.
 
-Pryvance's design set is declared in `docs/doc-manifest.md`.
+Pryvance's target design set is declared in `docs/doc-manifest.md`.

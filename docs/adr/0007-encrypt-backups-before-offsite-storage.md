@@ -1,48 +1,54 @@
-# ADR-0007: Encrypt backups before offsite storage
+# ADR-0007: Encrypt offsite recovery data before storage
 
 Status: Proposed
 Date: 2026-09-05
 
 ## Context
 
-Pryvance stores bank activity, investment data, receipts, tax documents, household allocations, and other highly sensitive financial information. A local-only backup is insufficient for host, disk, theft, fire, or site failure, so recoverable copies must be stored outside the Pryvance host. Cloud storage such as Google Drive is a convenient destination, but the storage provider must not become trusted with plaintext household data.
+Pryvance stores highly sensitive financial data and immutable evidence. Local-only recovery is insufficient for disk/host/theft/fire/site failure. Cloud providers such as Google Drive are useful destinations but must not become trusted with plaintext Household data.
 
-Offsite encryption also creates a recovery problem: if the host is lost, an encryption key stored only on that host makes the backup useless. The backup design therefore has to protect confidentiality from the storage provider while preserving a separately held recovery path for complete-host-loss scenarios.
+The object-vault design also separates hot/cold lifecycle from database backup. Historical objects may already exist as encrypted cloud Archive Packs that are suitable disaster-recovery copies; repeatedly bundling/re-uploading all immutable Documents with every database backup would waste bandwidth/storage.
+
+Recovery must therefore protect database state and object evidence coherently while allowing their physical backup streams to be independent.
 
 ## Decision Drivers
 
-- Offsite providers must receive only ciphertext, never plaintext database dumps or documents.
-- A complete loss of the Pryvance host must still be recoverable.
-- Backup integrity and completeness must be verifiable before a restore is allowed.
-- Destination choice must remain replaceable; Google Drive is a provider adapter, not a domain dependency.
-- The application must not invent new cryptographic primitives.
-- Backup credentials and encryption/recovery keys must be independent so compromise of one does not disclose data.
-- Restore must be a designed and testable workflow, not an emergency-only script.
+- Untrusted/offsite providers receive only ciphertext.
+- Complete host loss remains recoverable with separately held recovery material.
+- Database backups can run independently from large immutable-object storage.
+- Existing verified cloud cold replicas may satisfy object disaster recovery without redundant duplicate upload.
+- A selected database snapshot must prove every required Stored Object is recoverable.
+- Destination/provider choice remains replaceable.
+- Pryvance does not invent cryptographic primitives.
+- Restore/recovery health is designed/tested rather than emergency-only.
 
 ## Considered Options
 
-1. **Pryvance-coordinated, client-side encrypted backup with provider adapters** — keeps consistency and restore semantics inside the product while sending only opaque encrypted artifacts off-host; requires key-recovery UX and backup orchestration.
-2. **Plaintext backup to a provider relying on provider-managed encryption at rest** — operationally simple, but the provider/account compromise remains inside the confidentiality boundary and does not meet the privacy goal.
-3. **Entirely external host-level backup tooling** — mature tools can provide strong encryption and retention, but application consistency, document/database manifesting, restore compatibility, and user-visible backup health become harder to guarantee from Pryvance itself.
+1. **Separate encrypted Database Backup + verified Object Recovery, linked by a coherent Recovery Point** — avoids immutable-data reupload while preserving full recoverability; requires object-replica manifests/protection verification.
+2. **One monolithic encrypted database+all-documents bundle per backup** — conceptually simple; repeatedly moves large unchanged evidence and conflicts with tiered storage.
+3. **Plaintext/provider-managed encryption only** — operationally simple; provider/account compromise remains inside confidentiality boundary.
+4. **External host backup tooling only** — mature tooling may help, but application-level object/database coherence, status and restore semantics are harder to guarantee.
 
 ## Decision
 
-Pryvance will coordinate versioned, authenticated, client-side encrypted Backup Sets and upload only encrypted Backup Envelopes to replaceable Backup Destinations.
+Pryvance will encrypt/authenticate all recovery data locally before it leaves trusted storage and will separate physical Database Backup from Object Recovery while linking them through a versioned Recovery Point manifest.
 
-1. A Backup Set contains a transaction-consistent PostgreSQL logical backup, every immutable receipt/document object referenced by that snapshot, and a manifest containing format version, application/schema version, object identifiers, sizes, and cryptographic hashes.
-2. The Backup Set is encrypted locally before transfer using a vetted authenticated-encryption implementation or established backup/encryption engine. Pryvance will not implement a novel cipher or unauthenticated encryption format.
-3. The offsite destination adapter receives only the encrypted Backup Envelope plus non-sensitive transport metadata required to store/list it. Google Drive is an intended first destination, but the domain depends on a generic Backup Destination interface.
-4. Backup encryption keys are independent from cloud-provider OAuth/API credentials. Provider credentials cannot decrypt a backup.
-5. A locally generated backup master/recovery secret must have an explicit export/recovery workflow so complete host loss remains recoverable. The recovery secret is never uploaded in plaintext alongside the backups. Pryvance must warn that loss of the recovery secret makes encrypted backups unrecoverable.
-6. Restore decrypts into an isolated staging workflow, verifies the envelope authentication and manifest hashes, checks format/schema compatibility, and only then permits replacement/import into the live installation.
-7. Retention is configurable. Failed uploads or failed verification never prune the last known-good backup.
-8. Runtime/provider credentials and environment secrets are not required to be recoverable from the financial backup; provider connections may require reauthorization after disaster recovery.
+1. A Database Backup is a transaction-consistent PostgreSQL logical backup plus application/schema/catalog metadata. It is encrypted locally before transfer.
+2. For each database snapshot, an Object Recovery Snapshot identifies every Stored Object required by that database state and verifies at least one recovery-eligible Object Replica for each.
+3. A recovery-eligible Object Replica may be a dedicated object-backup copy or an encrypted cloud cold Archive Pack. Pryvance does not require a redundant second upload when a verified cold cloud replica already satisfies disaster-recovery policy.
+4. A logical Backup Set/Recovery Point links the database artifact and object manifest; it is not required to be one physical archive.
+5. Untrusted/cloud object Archive Packs and Database Backups use vetted authenticated encryption/envelope encryption. Provider credentials cannot decrypt them.
+6. Recovery/content-encryption keys are independent from provider OAuth/API credentials. The separately held Recovery Secret supports complete-host-loss recovery through a vetted key-wrapping/envelope mechanism.
+7. Restore stages the database, verifies format/schema, validates required object availability/integrity, and only then permits live recovery. Cold archives may remain cold and be rehydrated lazily after restore.
+8. Retention/pruning never removes the last known-good Recovery Point or an object replica still required to satisfy retained recovery policy.
+9. Runtime/provider credentials need not be recoverable from financial backups; reauthorization after disaster recovery is acceptable.
 
 ## Consequences
 
-- A Google Drive or other destination compromise does not by itself expose household financial plaintext.
-- Losing both the Pryvance host and the separately held recovery secret makes the backups intentionally unrecoverable; recovery-key onboarding and verification are required product work.
-- Backup/restore becomes a first-class subsystem with status, scheduling, retention, validation, and provider adapters rather than a deployment afterthought.
-- Database consistency and immutable object storage make a manifest-based backup practical without stopping the application for long periods.
-- Provider adapters can later support Google Drive, S3-compatible storage, local/NAS targets, or other destinations without changing backup semantics.
-- A concrete encryption engine/algorithm can be selected during implementation under the constraints of this ADR without changing the trust boundary established here.
+- Database backup cadence can remain frequent without repeatedly uploading multi-gigabyte immutable vault data.
+- Cold encrypted Google Drive storage can double as the document/object backup copy when policy marks it recovery-eligible.
+- Local/NAS cold storage is not automatically offsite disaster recovery; protection/failure-domain state must be visible.
+- Recovery health requires database verification **and** complete required-object protection.
+- Restore tests can reconnect cold archives and lazily rehydrate rather than restoring every old original to primary SSD.
+- Losing both host state and separately held Recovery Secret makes encrypted remote recovery intentionally impossible.
+- Concrete encryption/compression engines remain implementation choices constrained by these trust/integrity requirements.

@@ -2,366 +2,227 @@
 
 Kind: explanation
 
-Pryvance stores highly sensitive household financial, tax, identity, insurance, property, and document data. This document describes the intended feature-complete security/privacy architecture. Roadmap sequencing does not weaken these target guarantees.
+Pryvance stores highly sensitive Household financial, tax, identity, insurance, property and document data. This document describes the feature-complete security/privacy target; roadmap sequencing does not weaken these guarantees.
 
-The target posture assumes a trusted self-host operator and host administrator, authenticated application users, private-network access by default, least-privilege external connections, explicit application authorization, immutable evidence, provider-neutral AI with redaction, auditable exports/changes, and encrypted offsite recovery.
+The target assumes a trusted self-host operator/host administrator, authenticated application users, private-network access by default, purpose-aware authorization, least-privilege External Connections, encrypted secrets, immutable evidence, constrained/redacted AI, durable auditable background work, and encrypted offsite recovery.
 
 ## Trust boundaries
 
 ```mermaid
 flowchart LR
-    User[Authenticated browser/PWA]
+    User[Authenticated browser / PWA]
     Net[Tailscale / private LAN]
-    App[Pryvance application]
+    App[Pryvance]
     DB[(PostgreSQL)]
-    Store[(Private object store)]
-    Search[(Search/vector index)]
-    AI[Local or remote AI provider]
-    Ext[Bank/mail/market/notification providers]
-    Backup[Offsite backup provider]
+    Hot[(Hot object storage)]
+    Local[Mounted HDD / NAS]
+    Search[(Search / vector index)]
+    AI[Local or remote AI]
+    Ext[External providers]
+    Cloud[Untrusted cloud storage]
 
     User --> Net --> App
     App --> DB
-    App --> Store
+    App --> Hot
+    App --> Local
     App --> Search
-    App -->|authorized, minimized, redacted context| AI
-    App -->|least-privilege connections| Ext
-    App -->|encrypted Backup Envelopes only| Backup
+    App -->|authorized / minimized / redacted| AI
+    App -->|least privilege| Ext
+    App -->|encrypted archive / recovery artifacts| Cloud
 ```
 
-The Docker host, OS administrator, and database administrator are trusted in the initial cryptographic model. In-app privacy protects Household members from ordinary application disclosure; it does not claim that a server administrator with direct database/filesystem access cannot inspect plaintext.
+The Docker host, OS administrator and database/storage administrator are trusted in the current cryptographic model. In-app privacy protects Household members from ordinary application disclosure but does not claim protection from a server administrator with direct plaintext access.
 
-Future client-side/per-user cryptographic privacy may strengthen that boundary, but it is not required for the current feature-complete product vision.
+A configured local NAS/HDD may be treated as trusted local storage according to deployment policy. External/cloud Storage Targets are not trusted with plaintext unless the operator deliberately changes the trust model; target architecture requires local authenticated encryption for untrusted/cloud archive and backup data.
 
-## Network posture
+## Network and authentication
 
-- PostgreSQL is not published outside the internal container network.
-- Document/receipt storage is not exposed as a public directory.
-- Search/vector services, when present, are internal dependencies and not directly exposed.
-- The application is intended for LAN/Tailscale or equivalent private-overlay access rather than direct public internet exposure.
-- TLS is provided by the private access layer or a configured reverse proxy when required.
-- Local AI endpoints are restricted to the LAN/tailnet.
-- External connections use outbound provider communication; inbound provider webhooks require explicit endpoints, authentication/signature validation, replay protection, and narrow routing.
+- PostgreSQL, internal storage, search/vector services and worker administration are not directly public.
+- Remote application access is intended through LAN/Tailscale or an equivalent private overlay.
+- TLS is provided by the private access layer or configured reverse proxy.
+- Provider webhooks use explicit endpoints with signature/authentication/replay controls where available.
+- Every installation containing real Household data requires application authentication.
 
-## Authentication
+User Identity is separate from Person. Target roles include Owner, Manager, Viewer and Guardian, but roles do not replace resource/purpose Visibility Policy. Being application Owner does not automatically bypass another Person's private-detail policy through ordinary application APIs.
 
-Every installation containing real Household data requires application authentication even if initially only one User Identity exists.
+## Purpose-aware authorization
 
-User Identity is separate from Person. A Household member may exist as a Person without a login, and a login may have administrative responsibilities independent of financial ownership.
+Authorization evaluates at least:
 
-Target roles include:
+1. detail visibility;
+2. aggregate inclusion;
+3. Household calculation use;
+4. U.S. Tax Filing Context use/preparer access;
+5. mutation/management/administrative permission.
 
-- **Owner** — installation/Household administration;
-- **Manager** — delegated operational management;
-- **Viewer** — permitted read access only;
-- **Guardian** — delegated actions for a child Person.
+Current policy controls current access to historical detail. Revoking sharing removes ordinary historical access; prior grants remain only in Audit.
 
-Roles do not replace fine-grained Visibility Policies.
+Authorization occurs before data reaches REST output, aggregates, deterministic analytics, search/indexes, autocomplete/counts/facets, Review, match candidates, evidence traversal, AI tools/context, Calculation Runs visible to another user, Alerts/notifications, Scheduled Insights, exports, or caches/materialized projections.
 
-Being application Owner does not automatically grant ordinary in-app access to another Person's private financial detail. Administrative host access is a separate trusted-operator capability outside normal application authorization.
-
-## Authorization dimensions
-
-Authorization evaluates purpose as well as object ownership. At minimum:
-
-1. **detail visibility** — may this user see individual records/fields/evidence?
-2. **aggregate inclusion** — may this data contribute to a summary visible to the user?
-3. **Household calculation use** — may selected facts be used for funding/fairness/planning without exposing their source details?
-4. **Tax Filing Context use** — may the data/document participate in a Joint or Individual filing context, and may the designated preparer see it?
-5. **mutation/management** — may the user change plans, ownership, visibility, verification, rules, exports, connections, or administrative settings?
-
-Private data is filtered before serialization and before every derived surface. UI hiding is never an authorization boundary.
-
-## Visibility policies
-
-Useful account-level presets may include:
-
-- Private;
-- Balance Only;
-- Summary Only;
-- Shared Transactions Only;
-- Full Access.
-
-Record/document/fact overrides may be more restrictive. Gift/private-until-date controls are visibility-policy state, not presentation tricks.
-
-Current authorization governs current access to historical detail. If sharing is revoked today, previously shared historical transaction detail is no longer exposed through ordinary application views. Policy history remains in Audit for accountability.
-
-## Privacy propagation requirement
-
-Authorization must be applied before data reaches:
-
-- REST responses;
-- dashboard aggregates;
-- deterministic analytics;
-- global search;
-- search/vector indexes and snippets;
-- autocomplete/counts/facets;
-- Review Inbox;
-- match candidate lists;
-- evidence traversal;
-- AI tool results/context;
-- Scheduled Insights;
-- Alerts/notifications;
-- exports/download packages;
-- background caches/materialized projections.
-
-A private transaction must not leak existence through a placeholder row, count, merchant suggestion, Review item visible to another user, notification, semantic match, or AI explanation.
-
-Derived artifacts inherit the privacy classification/purpose restrictions of their sources unless an explicitly authorized aggregate/calculation result is designed to reveal less-sensitive output.
+Private data must not leak existence through placeholder rows or secondary metadata.
 
 ## Household calculation without disclosure
 
-Pryvance intentionally supports facts that may be used in Household calculations while remaining hidden in detail.
+Selected private facts may be authorized for Household calculations without exposing their source detail. For example, annual wages extracted from a private W-2 can inform Funding Reconciliation while another Person sees only the allowed contribution/fairness result.
 
-Example: a Person may keep payroll and W-2 documents private but authorize an annual eligible-income fact for Funding Plan calculations. Another Household member can see the resulting fair contribution percentage or funding status without seeing the underlying wages, employer details, deductions, or source Document unless a separate authorization grant applies.
+The calculation engine receives only facts permitted for that purpose. Calculation Run/Audit data visible to another user must not disclose hidden input values simply because it records provenance internally.
 
-The calculation engine receives only the minimum facts necessary for the calculation.
+## U.S. tax filing privacy
 
-## Tax Filing Context privacy
+Tax Filing Contexts are year-specific and target U.S. federal/state preparation support.
 
-Tax collaboration is explicit and year-specific.
+A Joint context can explicitly authorize designated preparer access to tax Documents/facts required for joint preparation even if ordinary financial sharing is narrower. An Individual context keeps tax evidence private unless separately shared, while selected facts may still be authorized for Household calculation use.
 
-### Joint filing context
+Accountant/tax exports are explicit, scoped, audited, and contain only authorized materials.
 
-A Joint Tax Filing Context names participants and designated preparer(s). It may grant the preparer access to the tax Documents/facts required for joint preparation even when ordinary financial visibility is narrower.
+## Sensitive data and secrets
 
-This grant is scoped to the filing context. It does not automatically expose unrelated personal transactions/accounts.
-
-### Individual filing context
-
-Each Person's tax evidence remains private unless otherwise shared. Selected facts may still be authorized for Household calculation use without exposing the source document/detail.
-
-### Export
-
-Accountant/tax-preparer exports are generated from an explicit Tax Filing Context and are audited. The export includes only authorized Documents/facts/supporting evidence and does not silently package the entire Household vault.
-
-## Sensitive-data handling
-
-Do not log or expose by default:
+Do not log/expose by default:
 
 - SSNs/tax IDs;
-- full account/card numbers;
-- full policy identifiers where unnecessary;
-- access/refresh tokens;
-- API keys;
-- backup Recovery Secrets;
-- provider credentials;
-- document bodies/images;
-- model prompts/results containing sensitive source data;
-- unredacted private exports.
+- full account/card/policy identifiers;
+- access/refresh tokens and API keys;
+- provider/AI credentials;
+- Recovery Secrets/content-encryption keys;
+- raw document bodies/images;
+- unredacted private AI prompts/results/exports.
 
-Secrets are supplied through environment/secret mechanisms or encrypted application secret storage, never committed configuration.
+Operational Jobs reference resource IDs rather than copying documents/secrets into queue payloads. Workers resolve credentials at execution through protected secret storage.
 
-Full-disk encryption is required before real Household data is considered safely onboarded.
+Secrets are never committed to the repository. Full-disk encryption is required before real Household data is considered safely onboarded.
 
-Temporary plaintext used for parsing/restore is restricted to controlled local staging and removed promptly. Streaming into encrypted/output-safe processing is preferred where practical.
+## AI boundary
 
-## External Connection security
+AI is provider-neutral and correctness-untrusted. Local inference is expected but not mandatory.
 
-External Connection stores provider, authentication method, granted scopes/capabilities, encrypted credential reference, owner, and health.
+Authorization filters the resource/purpose before prompt/tool construction. Sensitive values are removed or replaced with stable placeholders by default, including tax IDs, full account/card/policy numbers, credentials and recovery material.
 
-Capabilities are independent:
+Remote provider enablement requires explicit operator disclosure/opt-in that authorized minimized data can leave the local environment.
 
-- Bank Data;
-- Mail Read;
-- Mail Send;
-- Cloud Storage;
-- Market Data;
-- AI Inference;
-- Notification Delivery.
+AI receives typed tools/structured schemas rather than unrestricted SQL. It cannot directly own arithmetic, deduplication, authorization, transfer reconciliation, plan math, net-worth deduplication, tax treatment, storage cryptography, or unvalidated source-of-truth mutation.
 
-Least privilege is mandatory. A cloud-storage grant for backups does not imply mail access. Mail Read does not imply Mail Send.
+## Search and embeddings
 
-Supported authentication mechanisms may include OAuth2, API key, local bridge, app password, certificate, or provider-specific mechanisms. The architecture does not assume every provider behaves like Google OAuth.
+Search/vector indexes are derived sensitive data. Authorization is enforced at indexing and query time. Private items cannot leak via title/snippet, counts/facets, autocomplete, nearest-neighbor results, similarity scores or AI retrieval context.
 
-Provider credentials:
+Revocation/retention deletion triggers required index cleanup. Search indexes/previews are rebuildable and need not be treated as authoritative backup content when they can be reconstructed.
 
-- are encrypted at rest when persisted;
-- are never returned through general API representations;
-- are never sent to AI;
-- are never included in normal financial backup requirements;
-- may require reauthorization after disaster recovery;
-- produce sanitized health/error state only.
+## Object vault and tiered storage
 
-Provider webhooks, when used, require signature verification/replay controls as supported.
+Original Stored Objects are content addressed by SHA-256 and immutable. Domain metadata/extracted facts remain separate in PostgreSQL.
 
-## AI security boundary
+Hot/cold movement creates/removes Object Replicas; it does not change the canonical Stored Object hash or extracted facts.
 
-AI is provider-neutral and correctness-untrusted.
+Cold Archive Packs are immutable after sealing. Rehydration decrypts/decompresses in controlled staging, verifies the original SHA-256, and only then atomically creates a hot replica.
 
-Local LM Studio/OpenAI-compatible inference is an expected default, but the operator may explicitly configure a remote provider. Remote use requires clear disclosure that selected authorized data may leave the local environment.
+Untrusted/cloud cold storage uses locally authenticated encryption. Archive/content-encryption keys are independent of provider credentials and recoverable through a vetted key-wrapping/envelope mechanism tied to separately held Recovery Secret material. Pryvance does not invent cryptographic primitives.
 
-### Authorization before AI
+A cloud cold target may simultaneously satisfy object disaster-recovery requirements. Local cold storage on the same host/failure domain must not be mislabeled as offsite protection.
 
-AI never sees data first and asks permission later. Application authorization filters scope and purpose before any tool result or prompt context is constructed.
+## Upload/parser security
 
-### Redaction/minimization gateway
+Uploads/imports are untrusted input. Pryvance validates size/type, prevents path traversal, avoids executing macros/embedded active content, uses safe parsers, isolates temporary processing, and sanitizes parser errors.
 
-Sensitive values are redacted by default before AI requests, including:
-
-- SSNs/tax IDs;
-- full account/card numbers;
-- full policy/account identifiers;
-- access tokens/credentials;
-- Recovery Secrets;
-- other identifiers not required for the task.
-
-Stable placeholders may preserve semantic relationships in one request, for example:
-
-```text
-<PERSON_2>
-<ACCOUNT_1>
-<REDACTED_TAX_ID>
-```
-
-A feature that requires an original sensitive value must explicitly declare that requirement, pass authorization, and surface the privacy consequence.
-
-### Constrained tools
-
-AI cannot receive unrestricted SQL or database credentials. It uses typed application tools whose authorization cannot be widened by model-supplied parameters.
-
-AI cannot directly own:
-
-- arithmetic/totals;
-- deduplication;
-- transfer/payment reconciliation;
-- authorization;
-- budget/funding calculations;
-- net-worth deduplication;
-- backup cryptography;
-- known-form semantics;
-- tax treatment;
-- source-of-truth mutation without deterministic validation.
-
-Low-confidence/non-reconciling output becomes a candidate fact or Review Item.
-
-## Search and embeddings privacy
-
-Search indexes are derived sensitive data. Privacy must be enforced at indexing and query time.
-
-Private records cannot leak through:
-
-- indexed title/snippet;
-- counts/facets;
-- autocomplete;
-- vector nearest-neighbor output;
-- embedding-derived semantic similarity;
-- AI retrieval context.
-
-Embeddings inherit source visibility and retention semantics. Revoked/deleted sources trigger index update/removal as required by the policy.
-
-## Evidence and document security
-
-Original files are immutable evidence and content-hashed. Application records refer to object IDs/hashes rather than using user-controlled filenames as filesystem paths.
-
-Binary access is through authorized application endpoints. Storage paths and raw object locations are never directly exposed.
-
-Uploads/imports are untrusted input:
-
-- validate type/size;
-- avoid executing embedded content/macros;
-- use safe parsers;
-- prevent path traversal;
-- isolate temporary processing;
-- handle malformed files without leaking parser internals/sensitive context.
+User-controlled filenames are metadata only; they never determine filesystem paths.
 
 ## Retention and deletion
 
-Original evidence is retained indefinitely by default.
+Original evidence is retained indefinitely by default. Configurable deletion is explicit/audited because it weakens Evidence/Provenance.
 
-A configured retention policy may allow deletion by class/age, but deletion is explicit and audited because it weakens evidence/provenance.
+Deleting an object from live retention does not imply immediate erasure from immutable Archive Packs or older retained Recovery Points. Reclaimable archive entries are removed through safe compaction only after replacement/protection rules permit it; historical recovery artifacts persist until their own retention expires.
 
-Deletion from the live system does not imply immediate erasure from older retained Backup Envelopes. The UI/API must disclose that historical recovery points may continue to contain the object until backup retention expires.
+## Durable job security
 
-## Audit versus provenance
+PostgreSQL Jobs/Outbox records are application infrastructure, not a second financial data store. Payloads are bounded, sanitized and ID/reference oriented.
 
-Provenance records why Pryvance believes a financial fact.
+Workers use expiring leases, idempotent handlers and type/resource concurrency limits. Attempts record sanitized errors; failures can create Alerts without leaking provider/document/model content.
 
-Audit records who/what changed application state, when, and relevant before/after references.
+Persistent schedules use Household timezone for user cadence and UTC instants for execution/audit.
 
-Audit includes security/financially material actions such as:
+## External Connection security
 
-- visibility changes;
-- ownership changes;
-- plan/version changes;
-- verification/corrections;
-- rule/pattern changes;
-- Funding Reconciliation correction decisions;
-- tax filing access grants;
-- exports;
-- External Connection changes;
-- remote AI enablement/configuration;
-- retention settings;
-- backup/recovery administration.
+Capabilities are independently granted: Bank Data, Mail Read, Mail Send, Cloud Storage, Market Data, FX Rates, AI Inference and Notification Delivery.
 
-Audit is append-only and excludes raw secrets.
+A Drive/cloud grant does not imply mail access. Mail Read does not imply Mail Send. OAuth2 is one possible mechanism among API keys, app passwords, local bridges, certificates and provider-specific authentication.
 
-## Encrypted backup and disaster recovery
+Provider credentials are encrypted at rest, never returned through general API representations, never supplied to AI, and may require reauthorization after disaster recovery.
 
-Backups follow ADR-0007. Encryption/authentication occurs locally before any bytes are sent to Google Drive or another destination.
+## Money / FX integrity
 
-A Backup Set contains:
+Native monetary observations are immutable source facts. Reporting-currency values are derived and identify the actual settlement or sourced FX-rate basis used.
 
-- transaction-consistent PostgreSQL logical snapshot;
-- immutable objects referenced by that snapshot;
-- versioned manifest with application/schema version, object identifiers, sizes, and hashes.
+Changing the Household default reporting currency never rewrites native Account Entries, source records, valuations, or tax evidence. Stale/missing FX Coverage is visible rather than silently replaced with a guessed value.
 
-The Backup Set is packaged into an authenticated Backup Envelope using a vetted encryption implementation or established backup/encryption engine. Pryvance does not invent cryptographic primitives.
+## Audit and Provenance
 
-### Key separation
+Provenance explains why Pryvance believes a fact. Audit explains who/what changed application state and when.
 
-- backup Recovery Secret is not provider/OAuth credential;
-- provider credential compromise cannot decrypt existing backups;
-- Recovery Secret is never stored in plaintext beside remote backups;
-- complete host loss is recoverable from Backup Envelope + separately held Recovery Secret;
-- loss of Recovery Secret makes the encrypted backups unrecoverable by design.
+Audit includes visibility/ownership/liability responsibility changes, plan versions, corrections/verifications, rule/recurring changes, Funding Reconciliation policy decisions, tax access/export, External Connection/AI settings, storage policy/target changes, retention, archive operations where material, and backup/recovery administration.
 
-The operator must export and verify recovery material before offsite backup is considered fully configured.
+Audit excludes raw secrets.
 
-### Restore verification
+## Database and object disaster recovery
 
-Restore uses isolated staging:
+Database recovery and object recovery are separate streams.
 
-1. download envelope;
-2. authenticate/decrypt;
-3. verify manifest/hash completeness;
-4. check application/schema compatibility;
-5. verify object/database counts/health;
-6. only then permit live recovery.
+### Database Backup
 
-Upload success alone is not proof of recoverability. Periodic restore testing is part of backup health.
+A transaction-consistent PostgreSQL logical backup plus schema/application/catalog metadata is authenticated/encrypted locally before it leaves trusted storage. Provider credentials cannot decrypt it.
 
-### Retention safety
+### Object Recovery
 
-Pruning occurs only after a newer recovery point is successfully created, uploaded, verified, and satisfies policy. Failure never deletes the last known-good recovery point.
+For the database snapshot, Pryvance identifies every required Stored Object. Each must have at least one verified recovery-eligible Object Replica. That may be:
 
-## Multi-currency privacy/integrity
+- a separate encrypted object-backup copy;
+- an encrypted cloud cold Archive Pack that already satisfies recovery policy;
+- another configured recovery-eligible target.
 
-Native amounts/currencies are immutable facts. FX conversion is derived and sourced. Reports identify the rate/source/date used so conversion cannot silently rewrite historical native values.
+Hot-only recent objects must gain a recovery-eligible copy before the corresponding Recovery Point is healthy.
 
-## Alerts and notification privacy
+### Recovery Point
 
-Alerts contain the minimum detail required for the configured recipient/channel. Notification rendering re-evaluates recipient authorization at delivery time where feasible.
+A Recovery Point links one verified Database Backup to one verified Object Recovery Snapshot. It is not one mandatory monolithic file.
 
-A push/email alert should prefer wording such as `Credit-card payoff risk detected` over exposing merchant/account/private amount details when the delivery channel is less trusted or the recipient lacks detail permission.
+A healthy Recovery Point requires:
+
+- verified database artifact;
+- complete required-object manifest;
+- verified recovery-eligible replica for every object;
+- verified recovery material/key generation;
+- internally consistent manifest/versions.
+
+### Restore
+
+Restore is staged. Pryvance restores the database into isolation, verifies/decrypts the selected recovery data, validates required object availability/integrity/schema compatibility, and only then permits live recovery.
+
+A restore can reconnect cold archives and lazily rehydrate originals rather than copying the entire lifetime vault to the primary SSD.
+
+Upload success alone is not proof; periodic restore testing remains part of backup health. Failed/unverified runs never prune the last known-good Recovery Point.
+
+## Alerts and notifications
+
+Alert types are stable product facts. Delivery channels receive only the minimum detail useful for the recipient/channel. A push/email should prefer `Credit-card payoff risk detected` over exposing private merchant/account values when unnecessary.
+
+Delivery re-evaluates authorization where feasible and follows user type/severity/channel preferences.
 
 ## Threat priorities
 
-1. accidental/misconfigured Household-member disclosure;
-2. unauthorized Tax Filing Context access/export;
-3. public/network exposure of app/database/internal services;
-4. secret leakage through logs/configuration/backups;
-5. remote AI or integration over-sharing;
-6. search/index-derived privacy leakage;
-7. malicious/malformed import/document content;
-8. silent corruption of financial truth through automation/AI;
-9. provider webhook/replay/spoofing issues;
-10. backup loss, remote deletion, or unencrypted backup exposure;
-11. loss of separately held Recovery Secret;
-12. stale/revoked credentials or abandoned integrations continuing to access data.
+1. Household-member privacy misconfiguration/leak;
+2. unauthorized U.S. tax context access/export;
+3. public/network exposure of app/internal services;
+4. secret/recovery-key leakage;
+5. cloud archive/backup plaintext exposure;
+6. remote AI/integration over-sharing;
+7. search/index-derived privacy leakage;
+8. malicious/malformed document/import input;
+9. silent financial-truth corruption;
+10. queue/job replay or duplicate side effects;
+11. storage/object integrity loss or insufficient replica protection;
+12. provider webhook spoofing/replay;
+13. loss of database/object recovery coherence;
+14. loss of separately held Recovery Secret;
+15. stale/revoked credentials continuing unintended access.
 
 ## Future cryptographic privacy
 
-Client-side/per-user encryption could protect selected private records even from the trusted server administrator. That is not required for the current target because it complicates server-side search, analytics, reconciliation, AI, tax collaboration, and recovery.
-
-The schema should avoid assumptions that would make a future encrypted-private-record envelope impossible, but current documentation must not imply that this stronger guarantee already exists.
+Per-user/client-side encryption that protects private records from the trusted server administrator is not part of the approved target because it conflicts with server-side search, analytics, reconciliation, tax collaboration, AI and recovery. The schema should avoid needless barriers to a future envelope design, but current docs must not imply that stronger guarantee exists.
