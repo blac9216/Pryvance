@@ -31,7 +31,7 @@ class SanitizerPositiveTests(unittest.TestCase):
         self.assert_caught(value, "IBAN-shaped")
 
     def test_contextual_valid_routing_number_is_caught(self):
-        value = "routing number: " + "021000021"
+        value = "routing number: " + "021" + "000021"
         self.assert_caught(value, "ABA routing-number-shaped")
 
     def test_non_documentation_ipv4_is_caught(self):
