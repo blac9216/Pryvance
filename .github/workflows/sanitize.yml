@@ -1,0 +1,48 @@
+name: sanitize
+
+# Hard gate with no path filter: sensitive Household data can leak through docs,
+# fixtures, logs, scripts, or code just as easily as through application paths.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: sanitize-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sanitize:
+    name: secret + household-data scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Sanitization scanner self-tests
+        working-directory: .github/sanitize
+        run: python3 -m unittest discover -p 'test_*.py' -v
+
+      - name: gitleaks secret scan
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            git fetch --no-tags origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+            LOG_OPTS="--log-opts=origin/$BASE_REF..HEAD"
+            echo "gitleaks scope: PR range origin/$BASE_REF..HEAD"
+          else
+            LOG_OPTS=""
+            echo "gitleaks scope: full reachable history"
+          fi
+          docker run --rm -v "${{ github.workspace }}:/repo" \
+            zricethezav/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            detect --source /repo --redact -v $LOG_OPTS
+
+      - name: Pryvance-specific sanitization scan
+        run: python3 .github/sanitize/scan_repo_specific.py

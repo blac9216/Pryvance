@@ -1,5 +1,28 @@
 # Agent guidance
 
+## ⚠️ THIS IS A PUBLIC REPOSITORY — SANITIZATION IS MANDATORY
+
+Pryvance is public on GitHub and is designed to process highly sensitive Household financial, tax, identity, insurance, property, document, credential, and recovery data. Nothing derived from a real Household may be committed.
+
+Before every commit, verify that the diff contains none of the following:
+
+- credentials, API/access/refresh tokens, private keys, certificates with private material, recovery secrets, encryption keys, or provider secrets;
+- SSNs/tax IDs, full payment-card numbers, bank routing/account numbers, IBANs, policy identifiers, or other real financial/identity identifiers;
+- real Household financial records, provider exports, statements, receipts, tax documents, insurance/property documents, database dumps, backups, recovery artifacts, screenshots, or copied document bodies;
+- real email addresses, local/private hostnames, LAN/private-network addresses, Tailscale/internal infrastructure identifiers, or environment-specific configuration;
+- logs, traces, command output, AI prompts/results, or error captures containing real Household/provider/environment data.
+
+Rules of thumb:
+
+- Committed examples, demos, seeds, imports, documents, and test fixtures are **synthetic from inception**. Never sanitize by lightly editing, redacting, masking, or perturbing real Household material and committing the result.
+- The canonical committed fixture home is `fixtures/synthetic-household/`; grow that fictional Household incrementally as implemented tests/features need it.
+- Prefer reserved example domains and RFC documentation network ranges. Use invalid placeholders when a checksum-valid sensitive-shaped value is unnecessary.
+- A test that truly needs a valid sensitive-shaped identifier should construct it narrowly inside the test when practical, rather than publishing a reusable realistic-looking fixture value.
+- If sensitive real data or a secret is committed, even briefly, treat it as an incident: stop further pushes, tell the user immediately, rotate any exposed secret, and rewrite affected history as appropriate.
+- When in doubt, leave it out.
+
+The mechanical hard gate is `.github/workflows/sanitize.yml`: it self-tests the Pryvance-specific detector, runs gitleaks, and scans the tracked repository for high-confidence Household/environment identifier shapes. Do not weaken or broadly exempt that gate to make a fixture pass; fix the fixture or make the smallest explicitly justified detector change with regression tests.
+
 Before changing Pryvance architecture or domain behavior:
 
 1. Read `CONTEXT.md` for canonical terminology.
