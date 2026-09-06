@@ -30,6 +30,9 @@ IPV4_RE = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])")
 LOCAL_FQDN_RE = re.compile(r"(?<![A-Z0-9.-])([A-Z0-9-]+(?:\.[A-Z0-9-]+)+\.(?:local|lan|home|internal|corp))(?![A-Z0-9.-])", re.I)
 
 ALLOWED_EMAIL_DOMAINS = {"example.com", "example.net", "example.org", "example.invalid"}
+# Protocol/tooling identities that are constants rather than people or Household data.
+# Keep this exact-value list deliberately tiny; do not turn it into a domain exemption.
+ALLOWED_EMAIL_ADDRESSES = {"git@github.com"}
 DOC_IPV4 = tuple(ipaddress.ip_network(n) for n in ("192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24"))
 ROUTING_CONTEXT_RE = re.compile(r"\b(?:aba|routing|routing number|routing_number)\b", re.I)
 
@@ -77,8 +80,9 @@ def scan_text(path: str, text: str) -> list[str]:
     findings: list[str] = []
     for lineno, line in enumerate(text.splitlines(), 1):
         for match in EMAIL_RE.finditer(line):
+            address = match.group(0).lower()
             domain = match.group(2).lower()
-            if domain not in ALLOWED_EMAIL_DOMAINS:
+            if address not in ALLOWED_EMAIL_ADDRESSES and domain not in ALLOWED_EMAIL_DOMAINS:
                 findings.append(f"{path}:{lineno}: non-example email address: {match.group(0)}")
 
         for match in SSN_RE.finditer(line):
