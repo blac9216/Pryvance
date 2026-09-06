@@ -4,7 +4,7 @@
 
 - `design-docs`
 
-The required check name is taken from the current GitHub Actions PR job. It runs on every pull request and is therefore suitable for an eventual default-branch ruleset.
+The required check name is taken from the current GitHub Actions PR job. It runs on every pull request and is therefore the required check for the default-branch ruleset.
 
 ## Commands
 
