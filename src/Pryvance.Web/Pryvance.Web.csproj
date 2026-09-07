@@ -6,7 +6,7 @@
     <SpaRoot>ClientApp/</SpaRoot>
   </PropertyGroup>
 
-  <Target Name="BuildClient" BeforeTargets="ComputeFilesToPublish">
+  <Target Name="BuildClient" BeforeTargets="PrepareForPublish">
     <Exec WorkingDirectory="$(SpaRoot)" Command="npm ci" />
     <Exec WorkingDirectory="$(SpaRoot)" Command="npm run build" />
   </Target>
