@@ -39,6 +39,10 @@ review evidence until application CI suites are introduced.
 
 ## Local application shell
 
+This direct-host recipe requires an existing PostgreSQL instance and
+`ConnectionStrings__Pryvance` configured for it. To start both services together, use
+the [local database topology](#local-database-topology) below.
+
 Build the client, then start the same-origin application host:
 
 ```sh
