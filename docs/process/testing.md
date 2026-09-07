@@ -16,7 +16,7 @@ Pryvance has a runnable ASP.NET Core / React application shell, but application 
 | backend restore | `dotnet restore Pryvance.slnx` | .NET 10 SDK |
 | backend build | `dotnet build Pryvance.slnx --no-restore` | .NET 10 SDK |
 | frontend install | `npm ci --prefix src/Pryvance.Web/ClientApp` | Node.js 20+ and npm |
-| frontend build | `npm run build --prefix src/Pryvance.Web/ClientApp` | Node.js 20+ and npm |
+| frontend build | `npm run --silent build --prefix src/Pryvance.Web/ClientApp` | Node.js 20+ and npm |
 | production publish | `dotnet publish src/Pryvance.Web/Pryvance.Web.csproj --no-restore` | .NET 10 SDK, Node.js 20+, and npm |
 | rationale pointers | `bash scripts/docs/check-pointers.sh --root .` | repository checkout |
 | ADR index | `bash scripts/docs/adr-index.sh --root . --check` | repository checkout |
@@ -30,7 +30,7 @@ Build the client, then start the same-origin application host:
 
 ```sh
 npm ci --prefix src/Pryvance.Web/ClientApp
-npm run build --prefix src/Pryvance.Web/ClientApp
+npm run --silent build --prefix src/Pryvance.Web/ClientApp
 dotnet run --project src/Pryvance.Web/Pryvance.Web.csproj
 ```
 
