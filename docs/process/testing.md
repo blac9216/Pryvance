@@ -13,11 +13,11 @@ Pryvance has a runnable ASP.NET Core / React application shell, but application 
 
 | Suite | Command | Environment |
 |---|---|---|
-| backend restore | `dotnet restore Pryvance.slnx` | .NET 10 SDK |
-| backend build | `dotnet build Pryvance.slnx --no-restore` | .NET 10 SDK |
-| frontend install | `npm ci --prefix src/Pryvance.Web/ClientApp` | Node.js `^20.19.0 || >=22.12.0` and npm |
-| frontend build | `npm run --silent build --prefix src/Pryvance.Web/ClientApp` | Node.js `^20.19.0 || >=22.12.0` and npm |
-| production publish | `dotnet publish src/Pryvance.Web/Pryvance.Web.csproj --no-restore` | .NET 10 SDK, Node.js `^20.19.0 || >=22.12.0`, and npm |
+| backend restore | `dotnet restore backend/Pryvance.slnx` | .NET 10 SDK |
+| backend build | `dotnet build backend/Pryvance.slnx --no-restore` | .NET 10 SDK |
+| frontend install | `npm ci --prefix frontend` | Node.js `^20.19.0 || >=22.12.0` and npm |
+| frontend build | `npm run --silent build --prefix frontend` | Node.js `^20.19.0 || >=22.12.0` and npm |
+| production publish | `dotnet publish backend/src/Pryvance.Web/Pryvance.Web.csproj --no-restore` | .NET 10 SDK, Node.js `^20.19.0 || >=22.12.0`, and npm |
 | rationale pointers | `bash scripts/docs/check-pointers.sh --root .` | repository checkout |
 | ADR index | `bash scripts/docs/adr-index.sh --root . --check` | repository checkout |
 | sanitizer self-tests | `cd .github/sanitize && python3 -m unittest discover -p 'test_*.py' -v` | repository checkout; Python 3 stdlib only |
@@ -42,9 +42,9 @@ review evidence until application CI suites are introduced.
 Build the client, then start the same-origin application host:
 
 ```sh
-npm ci --prefix src/Pryvance.Web/ClientApp
-npm run --silent build --prefix src/Pryvance.Web/ClientApp
-dotnet run --project src/Pryvance.Web/Pryvance.Web.csproj
+npm ci --prefix frontend
+npm run --silent build --prefix frontend
+dotnet run --project backend/src/Pryvance.Web/Pryvance.Web.csproj
 ```
 
 Open the HTTP URL printed by ASP.NET Core. The shell calls `GET /api/v1/health` on that

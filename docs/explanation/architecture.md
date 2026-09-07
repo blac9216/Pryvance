@@ -58,6 +58,22 @@ flowchart TB
 
 Initial Docker Compose may run App and Worker in one ASP.NET Core process. PostgreSQL remains the durable work/state coordinator; a separate broker is not required initially. Worker loops may later move into one or more containers while keeping the same Job contract.
 
+The repository keeps independently tooled backend and frontend source trees while
+producing one deployed application host:
+
+```text
+backend/
+├── Pryvance.slnx
+└── src/
+    └── Pryvance.Web/      ASP.NET Core host, API, and generated wwwroot
+frontend/                  React source, package metadata, and frontend tooling
+```
+
+During production publish, the backend project builds `frontend/` into its generated
+`wwwroot` and includes those static assets in the ASP.NET Core output. Future backend
+tests belong under `backend/tests/`; frontend tests and tooling remain under
+`frontend/`. Directories are added only when their first files arrive.
+
 Hot object storage is normally a Docker volume on fast local storage. Additional configurable Storage Targets may be mounted filesystems/NAS/HDDs or external/cloud adapters. A target declares whether it can host hot replicas, cold Archive Packs, and/or disaster-recovery artifacts.
 
 Search/vector infrastructure can remain embedded or absent until needed. PostgreSQL, search services, object storage and worker administration are not exposed directly to public networks.

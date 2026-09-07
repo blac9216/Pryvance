@@ -3,7 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <SpaRoot>ClientApp/</SpaRoot>
+    <SpaRoot>../../../frontend/</SpaRoot>
   </PropertyGroup>
 
   <Target Name="BuildClient" BeforeTargets="PrepareForPublish">
