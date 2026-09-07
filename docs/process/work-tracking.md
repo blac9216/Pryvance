@@ -46,6 +46,6 @@ Configure default-branch protection with `bash .claude/skills/configure-workflow
 | Configuration | Value |
 |---|---|
 | Reviewer identity | none — single account; the review comment plus the merge are the verdict of record |
-| Session-log archive | none — session logs stay scratch-only |
+| Session-log archive | `blac9216/workflow-logs` |
 
 Local deviations from the canonical workflow: none currently declared.
