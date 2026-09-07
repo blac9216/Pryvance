@@ -9,7 +9,7 @@ Required check names are taken from the always-reporting GitHub Actions PR jobs.
 
 ## Commands
 
-Pryvance has a runnable ASP.NET Core / React application shell, but application test suites arrive in issue #13. The executable checks currently cover application builds, documentation integrity, and repository sanitization:
+Pryvance has a runnable ASP.NET Core / React application shell, but application test suites arrive in issue #12. The executable checks currently cover application builds, documentation integrity, and repository sanitization:
 
 | Suite | Command | Environment |
 |---|---|---|
