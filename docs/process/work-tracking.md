@@ -26,7 +26,7 @@ gh project field-list 7 --owner blac9216 --format json
 | Repository | `blac9216/Pryvance` |
 | Project owner | `blac9216` |
 | Project number | `7` |
-| Project ID | `PVT_kwHOBk6Ni84BimKa` |
+| Project | `PVT_kwHOBk6Ni84BimKa` |
 | Automation account | `machine-blac9216` |
 
 | Field | Field ID | Options (name → ID) |
