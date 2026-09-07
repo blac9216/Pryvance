@@ -26,6 +26,8 @@ Pryvance has a runnable ASP.NET Core / React application shell and a primitive u
 | repo-specific sanitize scan | `python3 .github/sanitize/scan_repo_specific.py` | repository checkout |
 | generic secret scan | `gitleaks detect --source . --no-banner` | repository checkout with gitleaks available; CI additionally scopes PR history as documented in `sanitize.yml` |
 
+No coverage command is currently defined.
+
 ## CI coverage map
 
 All three workflows run for every pull request and for pushes to `main`; none has a
