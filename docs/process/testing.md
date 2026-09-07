@@ -4,17 +4,19 @@
 
 - `design-docs`
 - `secret + household-data scan`
+- `backend tests`
 
-Required check names are taken from the always-reporting GitHub Actions PR jobs. Both jobs run on every pull request with no path filter and are therefore suitable required checks for the default-branch ruleset.
+Required check names are taken from the always-reporting GitHub Actions PR jobs. All three jobs run on every pull request with no path filter and are therefore suitable required checks for the default-branch ruleset.
 
 ## Commands
 
-Pryvance has a runnable ASP.NET Core / React application shell, but application test suites arrive in issue #12. The executable checks currently cover application builds, documentation integrity, and repository sanitization:
+Pryvance has a runnable ASP.NET Core / React application shell and a primitive unit-test suite. The executable checks cover application builds, primitive contracts, documentation integrity, and repository sanitization:
 
 | Suite | Command | Environment |
 |---|---|---|
 | backend restore | `dotnet restore backend/Pryvance.slnx` | .NET 10 SDK |
 | backend build | `dotnet build backend/Pryvance.slnx --no-restore` | .NET 10 SDK |
+| primitive unit tests | `dotnet test backend/tests/Pryvance.Primitives.Tests/Pryvance.Primitives.Tests.csproj --no-restore` | .NET 10 SDK |
 | frontend install | `npm ci --prefix frontend` | Node.js `^20.19.0 || >=22.12.0` and npm |
 | frontend build | `npm run --silent build --prefix frontend` | Node.js `^20.19.0 || >=22.12.0` and npm |
 | production publish | `dotnet publish backend/src/Pryvance.Web/Pryvance.Web.csproj --no-restore` | .NET 10 SDK, Node.js `^20.19.0 || >=22.12.0`, and npm |
@@ -26,16 +28,17 @@ Pryvance has a runnable ASP.NET Core / React application shell, but application 
 
 ## CI coverage map
 
-Both workflows run for every pull request and for pushes to `main`; neither has a path
-filter.
+All three workflows run for every pull request and for pushes to `main`; none has a
+workflow-level path filter.
 
 | Required check | Workflow | What it covers | What it does not cover |
 |---|---|---|---|
 | `design-docs` | `.github/workflows/docs-checks.yml` | Rationale-pointer resolution and ADR-index consistency | Application restore, build, publish, or runtime behavior |
 | `secret + household-data scan` | `.github/workflows/sanitize.yml` | Sanitizer self-tests, a history-aware gitleaks scan, and the Pryvance-specific repository scan | Application restore, build, publish, or runtime behavior |
+| `backend tests` | `.github/workflows/backend.yml` | Backend restore/build and primitive unit tests when backend inputs change; always reports through its final gate | Frontend runtime behavior and end-to-end application flows |
 
-Application runtime confidence therefore comes from the documented local commands and
-review evidence until application CI suites are introduced.
+Broader application runtime confidence still comes from the documented local commands
+and review evidence until integration and browser suites are introduced.
 
 ## Local application shell
 
