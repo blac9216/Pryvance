@@ -39,6 +39,10 @@ review evidence until application CI suites are introduced.
 
 ## Local application shell
 
+This direct-host recipe requires an existing PostgreSQL instance and
+`ConnectionStrings__Pryvance` configured for it. To start both services together, use
+the [local database topology](#local-database-topology) below.
+
 Build the client, then start the same-origin application host:
 
 ```sh
@@ -52,6 +56,46 @@ host and shows the returned application version when the connection succeeds.
 
 Run the sanitizer self-tests and repo-specific scan before pushing changes that add or alter examples, fixtures, logs, documents, imports, environment material, or sanitizer logic. The CI `sanitize` workflow remains the authoritative hard gate because it also performs the history-aware gitleaks scan.
 
+## Local database topology
+
+Start the published application and PostgreSQL from a clean checkout:
+
+```sh
+docker compose -f infrastructure/compose.yaml up --build --wait
+```
+
+The application is available at `http://localhost:8080`. Startup applies pending Entity
+Framework Core migrations and verifies a PostgreSQL round-trip before accepting traffic.
+The `database` service has no published host port and is attached only to Compose's
+internal `data` network. Its named volume preserves committed database state across
+ordinary stop/start and container replacement.
+
+For a clean, isolated synthetic integration database, choose a unique Compose project
+name and let Docker assign the host application port:
+
+```sh
+PRYVANCE_COMPOSE_PROJECT=pryvance-it-$(date +%s%N)
+PRYVANCE_HTTP_PORT=0 docker compose --project-name "$PRYVANCE_COMPOSE_PROJECT" -f infrastructure/compose.yaml up --build --wait
+docker compose --project-name "$PRYVANCE_COMPOSE_PROJECT" -f infrastructure/compose.yaml down --volumes
+```
+
+Use a different project name for every concurrent run. Find the assigned application
+port with `docker compose --project-name "$PRYVANCE_COMPOSE_PROJECT" -f infrastructure/compose.yaml port app 8080`.
+The initial migration intentionally contains no domain tables; the migration-history row
+is the durable baseline and a safe synthetic persistence probe.
+
+Restore the repository-pinned Entity Framework Core command and author later migrations
+from the contained backend tree:
+
+```sh
+dotnet tool restore --tool-manifest backend/.config/dotnet-tools.json
+cd backend
+ConnectionStrings__Pryvance='Host=localhost;Database=pryvance;Username=postgres' dotnet tool run dotnet-ef migrations add <Name> --project src/Pryvance.Web/Pryvance.Web.csproj --startup-project src/Pryvance.Web/Pryvance.Web.csproj --output-dir Infrastructure/Persistence/Migrations
+```
+
+Migration authoring does not connect to the example host; applying migrations still
+requires a configured PostgreSQL instance and occurs automatically at application startup.
+
 Add exact unit, integration, lint, and coverage commands in the same change that makes each command real.
 
 ## Synthetic Household fixtures
@@ -60,7 +104,11 @@ Committed Household-shaped example/demo/test material belongs under `fixtures/sy
 
 ## Isolation on a shared host
 
-The application can run directly from a worktree. Docker Compose and integration-test resources arrive in later Phase 0A issues; define deterministic per-worktree project/resource prefixes before parallel integration testing is enabled.
+The application can run directly from a worktree when `ConnectionStrings:Pryvance`
+targets a PostgreSQL instance owned by that run. Compose resources are scoped by project
+name, so parallel runs must use distinct names and dynamically assigned or otherwise
+distinct host ports. Never use broad Docker cleanup commands; remove only the explicitly
+named project's containers, network, and volume.
 
 ## Live testing
 
