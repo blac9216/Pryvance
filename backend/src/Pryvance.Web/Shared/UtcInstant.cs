@@ -7,6 +7,12 @@ namespace Pryvance.Web.Shared;
 [JsonConverter(typeof(UtcInstantJsonConverter))]
 public readonly record struct UtcInstant
 {
+    private static readonly string[] Rfc3339UtcFormats =
+    [
+        "yyyy-MM-dd'T'HH:mm:ss'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.FFFFFFF'Z'",
+    ];
+
     public UtcInstant(DateTimeOffset value)
     {
         if (value.Offset != TimeSpan.Zero)
@@ -30,9 +36,10 @@ public readonly record struct UtcInstant
             JsonSerializerOptions options)
         {
             var text = reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
-            if (text is null || !text.EndsWith('Z') ||
-                !DateTimeOffset.TryParse(
+            if (text is null ||
+                !DateTimeOffset.TryParseExact(
                     text,
+                    Rfc3339UtcFormats,
                     CultureInfo.InvariantCulture,
                     DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
                     out var value))

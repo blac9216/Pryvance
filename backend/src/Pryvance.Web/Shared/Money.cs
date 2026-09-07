@@ -80,7 +80,9 @@ public readonly record struct Money
                 NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint;
 
             if (amountText is null ||
-                !decimal.TryParse(amountText, allowedAmountStyles, CultureInfo.InvariantCulture, out var amount))
+                !decimal.TryParse(amountText, allowedAmountStyles, CultureInfo.InvariantCulture, out var amount) ||
+                NormalizeDecimal(amountText) !=
+                    NormalizeDecimal(amount.ToString(CultureInfo.InvariantCulture)))
             {
                 throw new JsonException("Money amount must be an invariant decimal string.");
             }
@@ -93,6 +95,24 @@ public readonly record struct Money
             {
                 throw new JsonException("Money currency is invalid.", exception);
             }
+        }
+
+        private static string NormalizeDecimal(string text)
+        {
+            var isNegative = text.StartsWith('-');
+            var unsignedText = text.TrimStart('+', '-');
+            var decimalPoint = unsignedText.IndexOf('.');
+            var scale = decimalPoint < 0 ? 0 : unsignedText.Length - decimalPoint - 1;
+            var digits = unsignedText.Replace(".", string.Empty, StringComparison.Ordinal)
+                .TrimStart('0');
+
+            while (scale > 0 && digits.EndsWith('0'))
+            {
+                digits = digits[..^1];
+                scale--;
+            }
+
+            return digits.Length == 0 ? "0" : $"{(isNegative ? "-" : string.Empty)}{digits}:{scale}";
         }
 
         public override void Write(Utf8JsonWriter writer, Money value, JsonSerializerOptions options)

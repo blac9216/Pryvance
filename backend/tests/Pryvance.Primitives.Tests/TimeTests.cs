@@ -31,6 +31,22 @@ public sealed class TimeTests
             JsonSerializer.Deserialize<UtcInstant>("\"2026-03-08T01:30:00-05:00\""));
     }
 
+    [Theory]
+    [InlineData("\"2026-03-08Z\"")]
+    [InlineData("\"12:00Z\"")]
+    public void IncompleteUtcInstantJsonIsRejected(string json) =>
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<UtcInstant>(json));
+
+    [Theory]
+    [InlineData("2026-03-08T06:30:00Z", "2026-03-08T06:30:00.0000000Z")]
+    [InlineData("2026-03-08T06:30:00.1234567Z", "2026-03-08T06:30:00.1234567Z")]
+    public void CompleteUtcInstantJsonRoundTrips(string input, string serialized)
+    {
+        var instant = JsonSerializer.Deserialize<UtcInstant>($"\"{input}\"");
+
+        Assert.Equal($"\"{serialized}\"", JsonSerializer.Serialize(instant));
+    }
+
     [Fact]
     public void SourceTimestampRoundTripRetainsUtcInstantAndTimezoneMetadata()
     {

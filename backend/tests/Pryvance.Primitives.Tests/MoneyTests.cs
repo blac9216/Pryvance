@@ -36,4 +36,25 @@ public sealed class MoneyTests
     [InlineData("{\"amount\":\"1.00\",\"currency\":\"usd\"}")]
     public void InvalidJsonIsRejected(string json) =>
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Money>(json));
+
+    [Theory]
+    [InlineData("0.00000000000000000000000000001")]
+    [InlineData("1234567890123456789012345678.91")]
+    [InlineData("79228162514264337593543950336")]
+    public void InexactOrOverflowingDecimalStringsAreRejected(string amount) =>
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Money>(
+            $"{{\"amount\":\"{amount}\",\"currency\":\"USD\"}}"));
+
+    [Theory]
+    [InlineData("79228162514264337593543950335", "79228162514264337593543950335")]
+    [InlineData("-79228162514264337593543950335", "-79228162514264337593543950335")]
+    [InlineData("0.0000000000000000000000000001", "0.0000000000000000000000000001")]
+    [InlineData("1.23000000000000000000000000000", "1.2300000000000000000000000000")]
+    public void ExactDecimalBoundariesAndTrailingZerosRoundTrip(string amount, string serializedAmount)
+    {
+        var money = JsonSerializer.Deserialize<Money>(
+            $"{{\"amount\":\"{amount}\",\"currency\":\"USD\"}}");
+
+        Assert.Equal($"{{\"amount\":\"{serializedAmount}\",\"currency\":\"USD\"}}", JsonSerializer.Serialize(money));
+    }
 }
