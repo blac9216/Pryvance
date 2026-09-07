@@ -1,2 +1,7 @@
 # Machine- and environment-local workflow guidance
 *.local.md
+# Application build outputs
+**/bin/
+**/obj/
+**/node_modules/
+src/Pryvance.Web/wwwroot/
