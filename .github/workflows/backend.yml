@@ -1,0 +1,89 @@
+name: backend
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: backend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    name: "changes: backend"
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: ${{ github.event_name == 'pull_request' && 1 || 0 }}
+
+      - name: Filter backend inputs
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            backend:
+              - "backend/**"
+              - "Directory.Build.*"
+              - "Directory.Packages.*"
+              - "global.json"
+              - ".editorconfig"
+              - ".github/workflows/backend.yml"
+
+  test:
+    name: "restore, build, unit tests"
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore backend/Pryvance.slnx
+
+      - name: Build
+        run: dotnet build backend/Pryvance.slnx --no-restore
+
+      - name: Run primitive unit tests and require discovery
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet test backend/tests/Pryvance.Primitives.Tests/Pryvance.Primitives.Tests.csproj \
+            --no-build --logger "console;verbosity=normal" | tee test-output.log
+          grep -Eq 'Total tests: [1-9][0-9]*' test-output.log
+
+  backend-tests:
+    # why: docs/rationale/ci-required-checks.md#always-reporting-backend-check
+    name: backend tests
+    needs: [changes, test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify applicable backend tests passed
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          BACKEND_CHANGED: ${{ needs.changes.outputs.backend }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          test "$CHANGES_RESULT" = success
+          if test "$BACKEND_CHANGED" = true; then
+            test "$TEST_RESULT" = success
+          elif test "$BACKEND_CHANGED" = false; then
+            test "$TEST_RESULT" = skipped
+          else
+            exit 1
+          fi

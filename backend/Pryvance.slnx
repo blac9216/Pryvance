@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="src/Pryvance.Web/Pryvance.Web.csproj" />
+  <Project Path="tests/Pryvance.Primitives.Tests/Pryvance.Primitives.Tests.csproj" />
 </Solution>
