@@ -1,2 +1,8 @@
 # Machine- and environment-local workflow guidance
 *.local.md
+# Application build outputs
+**/bin/
+**/obj/
+**/node_modules/
+**/*.tsbuildinfo
+backend/src/Pryvance.Web/wwwroot/
