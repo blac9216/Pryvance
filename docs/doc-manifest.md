@@ -1,6 +1,6 @@
 # Documentation manifest — as adopted here
 
-This repository follows the `design-docs` skill standard mirrored from the owner's `storage` repository. The design documents describe the feature-complete target architecture approved so far; the roadmap sequences implementation rather than defining later architecture by itself.
+This repository follows the `design-docs` skill standard mirrored from the owner's `storage` repository. The design documents describe the feature-complete target architecture approved so far; the roadmap sequences implementation rather than defining later architecture by itself. `docs/explanation/future-features.md` is a durable explanation of deferred opportunities and does not expand the approved target architecture until an item is separately researched, decided, and promoted.
 
 ## Design set
 - docs/explanation/architecture.md
@@ -12,6 +12,7 @@ This repository follows the `design-docs` skill standard mirrored from the owner
 - docs/explanation/operations-and-jobs.md
 - docs/explanation/security.md
 - docs/explanation/roadmap.md
+- docs/explanation/future-features.md
 - docs/reference/api-contract.md
 - docs/reference/operations-api.md
 - docs/reference/data-model.md
@@ -42,4 +43,4 @@ CONTEXT.md at repo root · domain model: docs/explanation/domain-model.md · per
 Scripts source: scripts/docs/
 
 ## Design path
-Durable decisions are recorded in ADRs, rationale, the glossary, and the declared design set. Specs, plans, interrogation records and audit gap reports are not committed. Adopted under ADR-0001.
+Durable decisions are recorded in ADRs, rationale, the glossary, and the declared design set. Specs, plans, interrogation records and audit gap reports are not committed. Deferred opportunity context may be preserved in `docs/explanation/future-features.md`, but it is not an approved design decision until promoted through the normal design process. Adopted under ADR-0001.
