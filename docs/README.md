@@ -4,7 +4,7 @@ Kind: reference
 
 Pryvance documentation follows Diátaxis and the adopted shape in [doc-manifest.md](doc-manifest.md).
 
-The explanation/reference design set describes the **feature-complete target architecture approved so far**. The roadmap sequences implementation; later-phase capabilities are already part of the target design.
+The explanation/reference design set describes the **feature-complete target architecture approved so far**. The roadmap sequences implementation; later-phase capabilities are already part of the target design. [Future feature opportunities](explanation/future-features.md) are intentionally outside that approved target until separately researched and promoted.
 
 ## Tutorials — learning by doing
 _(none yet)_
@@ -28,6 +28,7 @@ _(none yet)_
 - [Background jobs](explanation/operations-and-jobs.md) — PostgreSQL queue/outbox, leases, retries, schedules and concurrency
 - [Security and privacy](explanation/security.md) — trust boundaries and purpose-aware privacy/security
 - [Roadmap](explanation/roadmap.md) — implementation sequencing for the already-defined target architecture
+- [Future feature opportunities](explanation/future-features.md) — deferred long-range opportunities, rationale, dependencies, provider boundaries and revalidation requirements
 
 ## Decisions and rationale
 - [Architecture Decision Records](adr/README.md) — read the index first
