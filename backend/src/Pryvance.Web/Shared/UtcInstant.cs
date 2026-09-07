@@ -10,7 +10,13 @@ public readonly record struct UtcInstant
     private static readonly string[] Rfc3339UtcFormats =
     [
         "yyyy-MM-dd'T'HH:mm:ss'Z'",
-        "yyyy-MM-dd'T'HH:mm:ss.FFFFFFF'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.f'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.ff'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.fff'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.ffff'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.fffff'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'",
     ];
 
     public UtcInstant(DateTimeOffset value)

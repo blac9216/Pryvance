@@ -34,11 +34,18 @@ public sealed class TimeTests
     [Theory]
     [InlineData("\"2026-03-08Z\"")]
     [InlineData("\"12:00Z\"")]
+    [InlineData("\"2026-03-08T06:30:00.Z\"")]
     public void IncompleteUtcInstantJsonIsRejected(string json) =>
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<UtcInstant>(json));
 
     [Theory]
     [InlineData("2026-03-08T06:30:00Z", "2026-03-08T06:30:00.0000000Z")]
+    [InlineData("2026-03-08T06:30:00.1Z", "2026-03-08T06:30:00.1000000Z")]
+    [InlineData("2026-03-08T06:30:00.12Z", "2026-03-08T06:30:00.1200000Z")]
+    [InlineData("2026-03-08T06:30:00.123Z", "2026-03-08T06:30:00.1230000Z")]
+    [InlineData("2026-03-08T06:30:00.1234Z", "2026-03-08T06:30:00.1234000Z")]
+    [InlineData("2026-03-08T06:30:00.12345Z", "2026-03-08T06:30:00.1234500Z")]
+    [InlineData("2026-03-08T06:30:00.123456Z", "2026-03-08T06:30:00.1234560Z")]
     [InlineData("2026-03-08T06:30:00.1234567Z", "2026-03-08T06:30:00.1234567Z")]
     public void CompleteUtcInstantJsonRoundTrips(string input, string serialized)
     {
